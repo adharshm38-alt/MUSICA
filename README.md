@@ -124,8 +124,14 @@ MUSICA/
 │   │   ├── main.jsx             # React entry point
 │   │   ├── navigation.js        # sidebar / bottom-nav definitions
 │   │   └── index.css            # design tokens and component classes
+│   ├── capacitor.config.json
+│   ├── android/                      # Capacitor Android project
 │   ├── .env.example
 │   └── vite.config.js
+│
+├── scripts/
+│   ├── build-apk.sh                  # one-command Android build
+│   └── make-android-icons.mjs        # generates the MUSICA launcher icon
 │
 ├── server/                      # Express back end
 │   ├── src/
@@ -740,3 +746,125 @@ extend it for your own portfolio, coursework or projects.
 Uploaded content remains the property of whoever owns the rights to it. MUSICA provides
 tooling for sharing music you own; it does not grant any rights to distribute music you
 do not own.
+
+---
+
+## Android app (Capacitor)
+
+MUSICA ships as an Android app built with **Capacitor**, which wraps the existing
+Vite/React build in a native Android shell. The React UI is unchanged — the APK
+contains the exact same `client/dist` bundle the web app serves.
+
+- App name: **MUSICA**
+- App ID: **com.musica.app**
+- Minimum Android: 5.1 (API 22)
+- Wrapper: Capacitor 6 (real Android WebView, so the `<audio>` player and
+  Media Session behave as they do on the web)
+
+### Prerequisites
+
+Building an APK needs a JDK 17+ and the Android SDK:
+
+```bash
+# JDK 17 (skip if already installed)
+# https://adoptium.net/temurin/releases/?version=17
+
+# Android SDK command-line tools -> https://developer.android.com/studio
+# Then, accepting the licences:
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+```
+
+Point the shell at both:
+
+```bash
+export JAVA_HOME="$HOME/.local/opt/jdk17"          # or your JDK path
+export ANDROID_HOME="$HOME/.local/opt/android-sdk"  # or your SDK path
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+```
+
+### Build the debug APK
+
+```bash
+# One command does everything: web build -> cap sync -> icons -> gradle
+./scripts/build-apk.sh
+```
+
+Or step by step:
+
+```bash
+npm run build                 # build the web app
+cd client
+npx cap sync android          # copy dist/ into the Android project
+cd ..
+node scripts/make-android-icons.mjs
+cd client/android
+./gradlew assembleDebug
+```
+
+APK output:
+
+```
+client/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+### Pointing the app at your server
+
+A phone cannot reach `localhost` on your computer, so the app ships with a
+**Music server** field in *Settings* where you enter your computer's LAN address:
+
+```
+http://<your-computer-LAN-IP>:5000/api
+```
+
+Find your LAN IP:
+
+```bash
+hostname -I | awk '{print $1}'
+# or
+ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}'
+```
+
+The phone and the computer must be on the same Wi-Fi network, and the MUSICA
+backend must be listening on `0.0.0.0` (not just `127.0.0.1`) so it accepts
+connections from the network. `server/.env` already sets
+`CLIENT_URL=http://localhost:5173,http://127.0.0.1:5173`; for the Android app,
+add your LAN origin there too if you see CORS errors:
+
+```
+CLIENT_URL=http://localhost:5173,http://127.0.0.1:5173,http://<your-LAN-IP>:5173
+```
+
+The server URL is stored in `localStorage` under `musica.apiUrl` and resolved at
+runtime (see `client/src/config/runtime.js`), so one APK can be pointed at
+different servers without rebuilding.
+
+Cleartext `http://` is enabled for development via
+`client/android/app/src/main/res/xml/network_security_config.xml`. Remove that
+file (and the matching `android:networkSecurityConfig` attribute in
+`AndroidManifest.xml`) once you serve the API over HTTPS.
+
+### Release (signed) build
+
+For a Play-Store-ready build, generate a keystore and a release config:
+
+```bash
+keytool -genkey -v -keystore ~/musica-release.keystore \
+  -alias musica -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Create `client/android/keystore.properties` (git-ignored):
+
+```
+storeFile=/home/<you>/musica-release.keystore
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=musica
+keyPassword=YOUR_KEY_PASSWORD
+```
+
+Then:
+
+```bash
+cd client/android && ./gradlew assembleRelease
+```
+
+Never commit the keystore or `keystore.properties` — both are in `.gitignore`.
