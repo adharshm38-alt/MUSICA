@@ -1,0 +1,66 @@
+# ---------- Dependencies ----------
+node_modules/
+.pnp
+.pnp.js
+
+# ---------- Build output ----------
+dist/
+build/
+.vite/
+
+# ---------- Environment / secrets ----------
+.env
+.env.*
+!.env.example
+
+# ---------- Uploaded media (never commit) ----------
+server/uploads/*
+!server/uploads/.gitkeep
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------- Caches ----------
+.cache/
+.eslintcache
+coverage/
+*.tsbuildinfo
+
+# ---------- Editors / OS ----------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---------- Android (Capacitor) ----------
+# Gradle / build output
+client/android/.gradle/
+client/android/build/
+client/android/app/build/
+client/android/capacitor-cordova-android-plugins/build/
+client/android/local.properties
+client/android/.idea/
+client/android/captures/
+client/android/*.iml
+
+# Signing material - NEVER commit keystores or passwords
+*.jks
+*.keystore
+client/android/keystore.properties
+client/android/app/google-services.json
+
+# The built APK itself is large and reproducible; publish it as a GitHub
+# Release asset instead of committing it to the repository.
+*.apk
+*.aab
+*.aar
+
+# Android logcat output
+logcat*.txt

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MUSICA streams audio from a self-hosted backend. During development that is
+  usually http://<your-lan-ip>:5000, so cleartext is permitted for any host.
+  For a production deployment behind HTTPS, delete this file and the
+  android:usesCleartextTraffic / networkSecurityConfig attributes from
+  AndroidManifest.xml.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

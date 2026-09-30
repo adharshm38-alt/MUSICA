@@ -1,0 +1,18 @@
+{
+  "appId": "com.musica.app",
+  "appName": "MUSICA",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#05050a",
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#05050a"
+    }
+  }
+}

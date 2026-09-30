@@ -1,0 +1,251 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   MUSICA design tokens
+   Dark, premium music-app look: purple / blue / pink gradients on near-black.
+   ========================================================================== */
+@theme {
+  --color-base-950: #05050a;
+  --color-base-900: #0a0a12;
+  --color-base-850: #10101c;
+  --color-base-800: #161624;
+  --color-base-700: #1e1e2f;
+  --color-base-600: #2a2a3f;
+
+  --color-muted: #8b8ba7;
+  --color-soft: #b9b9d1;
+
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+
+  --color-accent-pink: #ec4899;
+  --color-accent-blue: #3b82f6;
+  --color-accent-cyan: #22d3ee;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-card: 1rem;
+  --radius-panel: 1.25rem;
+
+  --animate-fade-up: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.35s ease both;
+  --animate-scale-in: scale-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
+  --animate-spin-slow: spin 18s linear infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-base-900 text-soft font-sans antialiased;
+    /* Ambient glow behind the whole app */
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, rgb(124 58 237 / 0.16), transparent 60%),
+      radial-gradient(50rem 34rem at 100% 0%, rgb(236 72 153 / 0.12), transparent 60%),
+      radial-gradient(46rem 30rem at 60% 110%, rgb(59 130 246 / 0.1), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Visible, on-brand focus ring for keyboard users */
+  :where(a, button, input, textarea, select, [tabindex]):focus-visible {
+    @apply outline-none ring-2 ring-brand-400/80 ring-offset-2 ring-offset-base-900;
+  }
+
+  ::selection {
+    @apply bg-brand-500/40 text-white;
+  }
+
+  /* Slim scrollbars to match the dark theme */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-base-600) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-base-600;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-brand-500/60;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  img {
+    @apply select-none;
+  }
+}
+
+/* ==========================================================================
+   Reusable component classes
+   ========================================================================== */
+@layer components {
+  /* Frosted panel used by the sidebar, player and modals */
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+  }
+
+  .glass-strong {
+    @apply border border-white/10 bg-base-850/80 backdrop-blur-2xl;
+  }
+
+  /* Gradient text / fills */
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-400 via-accent-pink to-accent-blue bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-brand {
+    @apply bg-gradient-to-br from-brand-500 via-accent-pink to-accent-blue;
+  }
+
+  /* Buttons.
+     Tailwind v4 cannot @apply a custom class, so the shared button base is
+     written out via @utility (usable by every variant with `btn-*`). */
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full text-sm
+           font-semibold transition-all duration-200 select-none
+           bg-gradient-to-br from-brand-500 via-accent-pink to-accent-blue
+           text-white shadow-lg shadow-brand-600/25
+           hover:shadow-brand-500/40 active:scale-[0.97]
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full text-sm
+           font-semibold transition-all duration-200 select-none
+           border border-white/10 bg-white/5 text-soft
+           hover:border-white/20 hover:bg-white/10 hover:text-white active:scale-[0.97]
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-subtle {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-full text-sm
+           font-medium transition-all duration-200 select-none text-muted
+           hover:bg-white/5 hover:text-white
+           disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .btn-icon {
+    @apply inline-flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full
+           text-muted transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-90;
+  }
+
+  /* Form controls */
+  .field {
+    @apply w-full rounded-xl border border-white/10 bg-base-800/80 px-4 py-3 text-sm text-white
+           placeholder:text-muted/70 transition-colors
+           focus:border-brand-500/60 focus:outline-none focus:ring-2 focus:ring-brand-500/25;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-xs font-semibold tracking-wide text-muted uppercase;
+  }
+
+  /* Cards */
+  .card {
+    @apply rounded-card border border-white/5 bg-white/[0.03] transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply rounded-card border border-white/5 bg-white/[0.03] transition-all duration-300
+           hover:-translate-y-1 hover:border-white/15 hover:bg-white/[0.06]
+           hover:shadow-2xl hover:shadow-black/40;
+  }
+
+  /* Section heading + horizontal scroller with hidden scrollbar */
+  .rail {
+    @apply flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+  }
+
+  /* Skeleton loading state */
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-white/[0.07];
+  }
+
+  /* Bottom padding so the floating player never covers the last row of content */
+  .pb-player {
+    padding-bottom: 7rem;
+  }
+  @media (min-width: 1024px) {
+    .pb-player {
+      padding-bottom: 6.5rem;
+    }
+  }
+}
+
+/* ==========================================================================
+   Accessibility - honour "reduce motion" everywhere, all at once.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
