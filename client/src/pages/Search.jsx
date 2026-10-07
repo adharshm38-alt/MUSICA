@@ -13,6 +13,8 @@ import EmptyState from '../components/ui/EmptyState'
 import Icon from '../components/ui/Icon'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { compactNumber, cx, truncate } from '../utils/format'
+import YouTubeResults from '../components/music/YouTubeResults'
+import { youtubeService } from '../services/youtube'
 
 const TABS = [
   { key: 'all', label: 'All' },
@@ -20,6 +22,7 @@ const TABS = [
   { key: 'artists', label: 'Artists' },
   { key: 'albums', label: 'Albums' },
   { key: 'playlists', label: 'Playlists' },
+  { key: 'youtube', label: 'YouTube' },
 ]
 
 export default function Search() {
@@ -36,7 +39,26 @@ export default function Search() {
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
+  const [ytAvailable, setYtAvailable] = useState(null)
   const boxRef = useRef(null)
+
+  // Ask the server whether YouTube discovery is configured. The API key never
+  // reaches the browser; this is just a feature flag so we can hide the tab and
+  // explain why when the server has no key.
+  useEffect(() => {
+    let cancelled = false
+    youtubeService
+      .status()
+      .then((data) => {
+        if (!cancelled) setYtAvailable(Boolean(data?.configured))
+      })
+      .catch(() => {
+        if (!cancelled) setYtAvailable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Keep the box in sync when the URL changes (e.g. clicking a genre chip).
   useEffect(() => setInput(q), [q])
@@ -48,6 +70,14 @@ export default function Search() {
   useEffect(() => {
     const query = q.trim()
     if (!query) {
+      setResults(null)
+      setLoading(false)
+      return undefined
+    }
+
+    // The YouTube tab runs its own request (see YouTubeResults); the local
+    // index is not consulted, so we skip it entirely.
+    if (type === 'youtube') {
       setResults(null)
       setLoading(false)
       return undefined
@@ -245,12 +275,34 @@ export default function Search() {
         </div>
       ) : null}
 
+      {/* Not-configured notice. The API key lives server-side; when it is absent
+          we say so plainly instead of failing on a generic network error. */}
+      {q && type === 'youtube' && ytAvailable === false ? (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-panel border border-white/10 bg-white/[0.03] p-4"
+        >
+          <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-brand-400" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-white">YouTube discovery is not configured</p>
+            <p className="mt-1 text-xs text-muted">
+              This server has no <code className="text-soft">YOUTUBE_API_KEY</code> set, so YouTube
+              search and playback are unavailable. Add the key to{' '}
+              <code className="text-soft">server/.env</code> and restart the API. The key stays
+              server-side and is never sent to the browser.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Results */}
-      {!q ? (
+      {q && type === 'youtube' ? (
+        ytAvailable === false ? null : <YouTubeResults query={q} />
+      ) : !q ? (
         <EmptyState
           icon="search"
           title="What do you want to listen to?"
-          message="Search for a song, an artist, an album or a playlist."
+          message="Search for a song, an artist, an album or a playlist, or switch to the YouTube tab to discover music videos."
         />
       ) : loading && !results ? (
         <div className="grid gap-6 lg:grid-cols-2">

@@ -28,7 +28,7 @@ export const listPlaylists = asyncHandler(async (req, res) => {
       .skip(skip)
       .limit(limit)
       .populate('owner', 'username displayName avatarUrl')
-      .populate('songs', 'title artistName coverUrl duration audioUrl')
+      .populate('songs', 'title artistName coverUrl duration audioUrl source youtubeVideoId youtubeChannelTitle')
       .lean(),
     Playlist.countDocuments(filter),
   ])
@@ -153,7 +153,7 @@ export const addSongs = asyncHandler(async (req, res) => {
 
   await playlist.populate({
     path: 'songs',
-    select: 'title artistName coverUrl duration audioUrl',
+    select: 'title artistName coverUrl duration audioUrl source youtubeVideoId youtubeChannelTitle',
   })
   return sendSuccess(res, { playlist, added: additions.length })
 })
@@ -175,7 +175,7 @@ export const removeSong = asyncHandler(async (req, res) => {
   await playlist.save()
   await playlist.populate({
     path: 'songs',
-    select: 'title artistName coverUrl duration audioUrl',
+    select: 'title artistName coverUrl duration audioUrl source youtubeVideoId youtubeChannelTitle',
   })
   sendSuccess(res, { playlist })
 })
@@ -209,7 +209,7 @@ export const reorderSongs = asyncHandler(async (req, res) => {
 
   await playlist.populate({
     path: 'songs',
-    select: 'title artistName coverUrl duration audioUrl',
+    select: 'title artistName coverUrl duration audioUrl source youtubeVideoId youtubeChannelTitle',
   })
   sendSuccess(res, { playlist })
 })

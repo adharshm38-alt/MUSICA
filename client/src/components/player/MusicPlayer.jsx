@@ -39,6 +39,9 @@ export default function MusicPlayer() {
     toggleShuffle,
     cycleRepeat,
     openFullPlayer,
+    isYouTube,
+    canControlVolume,
+    openYouTubeStage,
   } = player
 
   const hasSong = Boolean(currentSong)
@@ -92,6 +95,19 @@ export default function MusicPlayer() {
             >
               <HeartIcon liked={isLiked} className={cx('h-[18px] w-[18px]', isLiked && 'text-accent-pink')} />
             </button>
+
+            {/* For YouTube the button re-opens the visible player stage, since
+                the official player cannot live inside this 88px bar. */}
+            {isYouTube ? (
+              <button
+                type="button"
+                onClick={openYouTubeStage}
+                className="ml-1 shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-bold tracking-wide text-soft uppercase transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="Show the YouTube player"
+              >
+                YouTube
+              </button>
+            ) : null}
           </div>
 
           {/* Center: transport */}
@@ -152,31 +168,48 @@ export default function MusicPlayer() {
           <div className="flex items-center justify-end gap-2">
             <Visualizer isPlaying={isPlaying} className="mr-1" />
 
-            <button
-              type="button"
-              onClick={toggleMute}
-              className="btn-icon"
-              aria-label={isMuted ? 'Unmute' : 'Mute'}
-            >
-              <Icon name={isMuted || volume === 0 ? 'mute' : 'volume'} className="h-[18px] w-[18px]" />
-            </button>
+            {/* YouTube's official player does not permit programmatic volume
+                control, so we hide our slider rather than ship a control that
+                silently does nothing. Volume lives on the player itself. */}
+            {canControlVolume ? (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="btn-icon"
+                  aria-label={isMuted ? 'Unmute' : 'Mute'}
+                >
+                  <Icon name={isMuted || volume === 0 ? 'mute' : 'volume'} className="h-[18px] w-[18px]" />
+                </button>
 
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={isMuted ? 0 : volume}
-              onChange={(event) => setVolume(Number(event.target.value))}
-              aria-label="Volume"
-              className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/10
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={(event) => setVolume(Number(event.target.value))}
+                  aria-label="Volume"
+                  className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/10
                          [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
                          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
                          [&::-webkit-slider-thumb]:bg-white"
-              style={{
-                background: `linear-gradient(to right, #8b5cf6 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.1) ${(isMuted ? 0 : volume) * 100}%)`,
-              }}
-            />
+                  style={{
+                    background: `linear-gradient(to right, #8b5cf6 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.1) ${(isMuted ? 0 : volume) * 100}%)`,
+                  }}
+                />
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={openYouTubeStage}
+                className="btn-icon"
+                aria-label="Volume is controlled by the YouTube player"
+                title="Volume is controlled inside the YouTube player"
+              >
+                <Icon name="volume" className="h-[18px] w-[18px]" />
+              </button>
+            )}
 
             <button
               type="button"
@@ -197,9 +230,9 @@ export default function MusicPlayer() {
     <div className="fixed inset-x-0 bottom-[57px] z-30 px-2 lg:hidden">
       <button
         type="button"
-        onClick={openFullPlayer}
+        onClick={isYouTube ? openYouTubeStage : openFullPlayer}
         className="glass-strong flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left shadow-xl shadow-black/40"
-        aria-label="Open full player"
+        aria-label={isYouTube ? 'Show the YouTube player' : 'Open full player'}
       >
         <SongCover song={currentSong} size="sm" rounded="rounded-lg" />
 

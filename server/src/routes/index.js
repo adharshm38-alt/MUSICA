@@ -7,6 +7,7 @@ import searchRoutes from './search.routes.js'
 import historyRoutes from './history.routes.js'
 import reportRoutes from './report.routes.js'
 import adminRoutes from './admin.routes.js'
+import youtubeRoutes from './youtube.routes.js'
 
 const router = Router()
 
@@ -23,5 +24,7 @@ router.use('/search', searchRoutes)
 router.use('/history', historyRoutes)
 router.use('/reports', reportRoutes)
 router.use('/admin', adminRoutes)
+// YouTube discovery (metadata only; playback uses YouTube's official embed).
+router.use('/youtube', youtubeRoutes)
 
 export default router

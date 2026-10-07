@@ -6,12 +6,25 @@ import {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react'
 import api, { TOKEN_KEY, API_ORIGIN } from '../services/api'
 import { getAudio } from './audioInstance'
 import { ACTIONS, REPEAT_MODES, initialState, reducer } from './playerReducer'
+import { ENGINE_YOUTUBE, engineFor } from './playback/engines'
 
 const PlayerContext = createContext(null)
+
+/**
+ * True when an id looks like a real MongoDB ObjectId.
+ *
+ * YouTube discoveries that have not been saved into the library use a synthetic
+ * "yt:<videoId>" id so React keys and queue lookups work. Those must never be
+ * sent to endpoints that expect a database document.
+ */
+function isMongoId(id) {
+  return typeof id === 'string' && /^[a-f0-9]{24}$/i.test(id)
+}
 
 /**
  * play() rejects for a few very different reasons; treat them differently so a
@@ -84,6 +97,10 @@ export function PlayerProvider({ children }) {
     const songId = currentSong?._id
     if (!songId || songId === lastRecordedRef.current) return
     lastRecordedRef.current = songId
+    // Unsaved YouTube discoveries carry a synthetic "yt:<videoId>" id that is
+    // not in our database, so there is no song document to count a play on.
+    // Once saved into the library they get a real ObjectId and are counted.
+    if (currentSong?.source === 'youtube' && !isMongoId(songId)) return
     api.post(`/songs/${songId}/play`).catch(() => {
       // Play tracking must never interrupt listening.
     })
@@ -112,9 +129,51 @@ export function PlayerProvider({ children }) {
   // Monotonic token: async callbacks belonging to an older source are ignored.
   const sourceTokenRef = useRef(0)
 
-  // ---- Keep the audio element in sync with the current song + play state ----
+  // ---- Playback engine routing ----
+  //
+  // Uploads keep using the shared HTMLAudioElement above, completely unchanged.
+  // YouTube discoveries are played by the OFFICIAL embedded player, which is
+  // mounted by <YouTubeStage>. That component lives outside this provider, so
+  // it hands us its engine instance through registerYouTubeEngine() and we drive
+  // play/pause/seek from here. Until it mounts, ytEngineRef is null and every
+  // call is a safe no-op - the UI still renders, it just cannot start playback.
+  const ytEngineRef = useRef(null)
+  const registerYouTubeEngine = useCallback((engine) => {
+    ytEngineRef.current = engine
+  }, [])
+
+  /**
+   * Receives state changes from the official embedded player and mirrors them
+   * into the shared reducer, so the existing play/pause button and progress bar
+   * stay truthful for YouTube tracks without any special-casing downstream.
+   *
+   * Documented player states: 0 = ended, 1 = playing, 2 = paused, 3 = buffering.
+   */
+  const setYouTubeState = useCallback((state) => {
+    if (state === 1) dispatch({ type: ACTIONS.SET_PLAYING, value: true })
+    else if (state === 2) dispatch({ type: ACTIONS.SET_PLAYING, value: false })
+    else if (state === 0) dispatch({ type: ACTIONS.ENDED })
+  }, [])
+
+  // Which engine owns the current song.
+  const activeEngine = engineFor(currentSong)
+  const isYouTube = activeEngine === ENGINE_YOUTUBE
+
+  // YouTube auto-opens its stage: the official player must be visible to play,
+  // so we cannot start playback silently inside the compact bottom bar.
+  const [ytStageOpen, setYtStageOpen] = useState(false)
   useEffect(() => {
-    if (!audio) return undefined
+    if (isYouTube) setYtStageOpen(true)
+  }, [isYouTube, currentSong?.youtubeVideoId])
+
+  // ---- Keep the audio element in sync with the current song + play state ----
+  //
+  // GUARD: this effect owns first-party uploads ONLY. When the current song is
+  // a YouTube discovery there is no audio URL to load - the official embedded
+  // player handles it (see the YouTube effect below). Everything below this
+  // guard is the original, unmodified upload path.
+  useEffect(() => {
+    if (!audio || isYouTube) return undefined
 
     const url = absoluteSrc(currentSong?.audioUrl, API_ORIGIN)
 
@@ -170,17 +229,49 @@ export function PlayerProvider({ children }) {
       request.catch((error) => handlePlayRejection(error, url, dispatch))
     }
     return undefined
-  }, [audio, state.isPlaying, currentSong?._id, currentSong?.audioUrl])
+  }, [audio, state.isPlaying, currentSong?._id, currentSong?.audioUrl, isYouTube])
+
+  // ---- YouTube transport ----
+  //
+  // Mirrors the audio effect above for the official embedded player:
+  //   - song changed -> the engine loads the video, and plays if we want to
+  //   - same song    -> apply play/pause
+  //
+  // Progress and duration are polled from the engine, because the official
+  // player reports state rather than emitting DOM media events.
+  useEffect(() => {
+    if (!isYouTube) return undefined
+    const engine = ytEngineRef.current
+    if (!engine) return undefined
+
+    if (state.isPlaying) engine.play()
+    else engine.pause()
+
+    const duration = engine.getDuration()
+    if (Number.isFinite(duration) && duration > 0 && duration !== state.duration) {
+      dispatch({ type: ACTIONS.SET_DURATION, value: duration })
+    }
+
+    const tick = setInterval(() => {
+      dispatch({ type: ACTIONS.SET_PROGRESS, value: engine.getCurrentTime() })
+    }, 500)
+
+    return () => clearInterval(tick)
+  }, [isYouTube, state.isPlaying, currentSong?.youtubeVideoId])
 
   // ---- Volume ----
+  //
+  // Volume is applied to the audio element only. YouTube's official player does
+  // not permit programmatic volume control, so the UI hides our slider for
+  // YouTube tracks and the player keeps its own visible volume control.
   useEffect(() => {
-    if (!audio) return
+    if (!audio || isYouTube) return
     audio.volume = state.isMuted ? 0 : state.volume
-  }, [audio, state.volume, state.isMuted])
+  }, [audio, state.volume, state.isMuted, isYouTube])
 
   // ---- Wire native audio events into our state ----
   useEffect(() => {
-    if (!audio) return undefined
+    if (!audio || isYouTube) return undefined
 
     const onTime = () => dispatch({ type: ACTIONS.SET_PROGRESS, value: audio.currentTime })
     const onMeta = () => {
@@ -277,13 +368,21 @@ export function PlayerProvider({ children }) {
   const prev = useCallback(() => dispatch({ type: ACTIONS.PREV }), [])
 
   const seek = useCallback((seconds) => {
+    // Route to whichever engine owns the current song.
+    if (engineFor(currentSong) === ENGINE_YOUTUBE) {
+      ytEngineRef.current?.seek(seconds)
+      dispatch({ type: ACTIONS.SET_PROGRESS, value: seconds })
+      return
+    }
     const audio = audioRef.current
     if (!audio) return
     audio.currentTime = seconds
     dispatch({ type: ACTIONS.SET_PROGRESS, value: seconds })
-  }, [])
+  }, [currentSong])
 
   const setVolume = useCallback((value) => {
+    // The official YouTube player does not permit programmatic volume, so the
+    // value is tracked but not pushed anywhere for YouTube tracks.
     dispatch({ type: ACTIONS.SET_VOLUME, value })
   }, [])
 
@@ -321,6 +420,11 @@ export function PlayerProvider({ children }) {
       dispatch({ type: ACTIONS.SET_LIKED, value: null })
       return undefined
     }
+    // Not in the database yet, so there is nothing to like.
+    if (!isMongoId(songId)) {
+      dispatch({ type: ACTIONS.SET_LIKED, value: null })
+      return undefined
+    }
 
     let cancelled = false
     api
@@ -349,6 +453,21 @@ export function PlayerProvider({ children }) {
       ...state,
       currentSong,
       isLiked: Boolean(state.likedSongId && state.likedSongId === currentSong?._id),
+
+      // ---- Playback engine introspection ----
+      // The UI reads these to adapt: which controls to show, and whether the
+      // visible YouTube stage is needed. Existing consumers of usePlayer() keep
+      // working unchanged because everything above is untouched.
+      isYouTube,
+      engineType: activeEngine,
+      canSeek: true,
+      canControlVolume: !isYouTube,
+      ytStageOpen,
+      openYouTubeStage: () => setYtStageOpen(true),
+      closeYouTubeStage: () => setYtStageOpen(false),
+      registerYouTubeEngine,
+      setYouTubeState,
+
       playQueue,
       playSong,
       toggle,
@@ -374,7 +493,7 @@ export function PlayerProvider({ children }) {
         likePendingRef.current = Boolean(value2)
       },
     }),
-    [state, currentSong, playQueue, playSong, toggle, next, prev, seek, setVolume, toggleMute, toggleShuffle, cycleRepeat, enqueue, removeFromQueue, clearQueue, playAt],
+    [state, currentSong, isYouTube, activeEngine, ytStageOpen, registerYouTubeEngine, setYouTubeState, playQueue, playSong, toggle, next, prev, seek, setVolume, toggleMute, toggleShuffle, cycleRepeat, enqueue, removeFromQueue, clearQueue, playAt],
   )
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>

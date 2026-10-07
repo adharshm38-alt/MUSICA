@@ -27,10 +27,55 @@ export default function FullPlayer() {
     cycleRepeat,
     closeFullPlayer,
     openQueue,
+    isYouTube,
+    openYouTubeStage,
   } = usePlayer()
   const { toggleLike, busyIds } = useSocial()
 
   if (!currentSong) return null
+
+  // A YouTube track is never played through this screen: the official embedded
+  // player has to be visible, and this view only has room for cover art. Send
+  // the user to the dedicated YouTube stage instead.
+  if (isYouTube) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex flex-col animate-fade-in lg:hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Playing from YouTube"
+      >
+        <div className="absolute inset-0 -z-10 bg-base-950" />
+        <header className="flex items-center justify-between px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+          <button type="button" onClick={closeFullPlayer} className="btn-icon" aria-label="Close player">
+            <Icon name="chevronDown" className="h-6 w-6" strokeWidth={2} />
+          </button>
+          <p className="text-[10px] font-semibold tracking-[0.2em] text-white/50 uppercase">
+            Playing from YouTube
+          </p>
+          <button type="button" onClick={openQueue} className="btn-icon" aria-label="Open queue">
+            <Icon name="queue" />
+          </button>
+        </header>
+
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <SongCover song={currentSong} size="full" rounded="rounded-[2rem]" className="aspect-square w-full max-w-[300px]" />
+          <div className="w-full min-w-0 text-center">
+            <h2 className="truncate text-xl font-bold text-white" {...truncate(currentSong.title, 2)}>
+              {currentSong.title}
+            </h2>
+            <p className="mt-1 truncate text-sm text-white/60">
+              {currentSong.youtubeChannelTitle || currentSong.artistName}
+            </p>
+          </div>
+          <button type="button" onClick={openYouTubeStage} className="btn-primary px-6 py-3">
+            <Icon name="play" className="h-4 w-4" filled />
+            Open the YouTube player
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const artistLabel = currentSong.artistName || currentSong.artist?.displayName || 'Unknown artist'
   const cover = currentSong.coverUrl

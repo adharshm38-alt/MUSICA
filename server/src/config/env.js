@@ -41,6 +41,26 @@ export const config = {
   uploadsDir: path.join(SERVER_ROOT, process.env.UPLOADS_DIR || 'uploads'),
   maxAudioSizeMb: Number(process.env.MAX_AUDIO_SIZE_MB) || 25,
   maxImageSizeMb: Number(process.env.MAX_IMAGE_SIZE_MB) || 5,
+
+  /**
+   * YouTube Data API (discovery only).
+   *
+   * The key is server-side ONLY. It is never sent to the browser, never
+   * exposed through an API response, and must never be committed - it lives
+   * in server/.env, which is git-ignored.
+   *
+   * The app never downloads, extracts, caches or separates YouTube audio.
+   * Playback happens exclusively inside YouTube's official embedded player.
+   */
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || '',
+    // Which Data API version to target.
+    apiVersion: 'v3',
+    // How long cached video metadata stays fresh (seconds).
+    cacheTtlSeconds: Number(process.env.YOUTUBE_CACHE_TTL_SECONDS) || 86400,
+    // Hard cap on results returned per page, to keep responses small.
+    maxResults: Number(process.env.YOUTUBE_MAX_RESULTS) || 25,
+  },
 }
 
 export default config

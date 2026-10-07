@@ -17,10 +17,36 @@ export function createApp() {
   app.set('trust proxy', 1)
 
   // Security headers. Cross-origin media is needed for <audio> playback.
+  //
+  // CSP is enabled in production, but the directives below are widened just
+  // enough for YouTube's OFFICIAL embedded player to work:
+  //   - frame-src         : the embed iframe (youtube-nocookie.com)
+  //   - script-src        : the IFrame Player API script from youtube.com
+  //   - img-src/connect-src : thumbnails and the API endpoints the player uses
+  // The player stays visible and is never hidden or overlaid - see
+  // client/src/components/player/YouTubeFrame.jsx.
+  const CSP_DIRECTIVES = {
+    defaultSrc: ["'self'"],
+    // Vite's dev client injects inline styles/scripts.
+    scriptSrc: ["'self'", 'https://www.youtube.com', 'https://s.ytimg.com'],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", 'data:', 'https://i.ytimg.com', 'https://*.ggpht.com', 'https://*.googleusercontent.com'],
+    mediaSrc: ["'self'", 'blob:', 'https://*.muxedcdn.com', 'https://*.googlevideo.com'],
+    connectSrc: ["'self'", 'https://www.youtube.com', 'https://*.googlevideo.com'],
+    frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://www.youtube.com'],
+    fontSrc: ["'self'", 'data:'],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+    frameAncestors: ["'self'"],
+  }
+
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      contentSecurityPolicy: config.isProduction ? undefined : false,
+      contentSecurityPolicy: config.isProduction
+        ? { useDefaults: false, directives: CSP_DIRECTIVES }
+        : false,
     }),
   )
 
