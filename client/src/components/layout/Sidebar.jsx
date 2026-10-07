@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { NAV_ITEMS } from '../../navigation'
 import { useAuth } from '../../context/AuthContext'
+import { useServerConfig } from '../../config/serverConfig'
 import { useToast } from '../../context/ToastContext'
 import { cx } from '../../utils/format'
 import Icon from '../ui/Icon'
@@ -12,6 +13,7 @@ export default function Sidebar() {
   const { user, isAuthenticated, logout } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
+  const { uploadsEnabled } = useServerConfig()
 
   const handleLogout = async () => {
     await logout()
@@ -34,6 +36,10 @@ export default function Sidebar() {
         <ul className="space-y-0.5">
           {NAV_ITEMS.map((item) => {
             const locked = item.requiresAuth && !isAuthenticated
+            // Items that need a durable upload store are removed entirely when
+            // the server has uploads turned off, rather than shown and then
+            // refused.
+            if (item.requiresUploads && !uploadsEnabled) return null
             return (
               <li key={item.to}>
                 <NavLink

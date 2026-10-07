@@ -20,9 +20,10 @@ const router = Router()
 router.get('/status', youtube.status)
 
 // ---- Search ----
-// search.list costs 100 quota units, so this is the most expensive endpoint.
-// On top of the service-layer cache we cap how often a single caller may hit
-// it, so one user cannot drain the daily quota by refreshing.
+// search.list costs 100 quota units, the single most expensive call we make.
+// The daily quota is shared by every user of the deployment, so this endpoint is
+// restricted to signed-in users: otherwise any anonymous visitor could exhaust
+// it and leave the app with no YouTube results at all.
 const searchLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 12,
@@ -36,13 +37,15 @@ const searchLimiter = rateLimit({
 
 router.get(
   '/search',
-  optionalAuth,
+  requireAuth,
   searchLimiter,
   youtube.search,
 )
 
 // ---- Trending / popular music ----
-router.get('/trending', youtube.trending)
+// videos.list costs only 1 unit, but it is still quota; keep it behind auth for
+// consistency with search.
+router.get('/trending', requireAuth, youtube.trending)
 
 // ---- Video metadata ----
 // /videos/:videoId is declared last so it cannot shadow /videos.

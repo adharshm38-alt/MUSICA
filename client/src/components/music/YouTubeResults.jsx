@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { usePlayer } from '../../context/PlayerContext'
 import { useToast } from '../../context/ToastContext'
@@ -49,6 +49,16 @@ export default function YouTubeResults({ query }) {
       return undefined
     }
 
+    // The server restricts YouTube search to signed-in users so the shared daily
+    // quota cannot be drained by anonymous traffic. Ask for a sign-in instead of
+    // firing a request that would come back 401.
+    if (!isAuthenticated) {
+      setResults(null)
+      setError('')
+      setLoading(false)
+      return undefined
+    }
+
     let cancelled = false
     setLoading(true)
     setError('')
@@ -74,7 +84,7 @@ export default function YouTubeResults({ query }) {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [term])
+  }, [term, isAuthenticated])
 
   // Play the chosen result in the official player via the standard queue path.
   const handlePlay = useCallback(
@@ -112,6 +122,21 @@ export default function YouTubeResults({ query }) {
         icon="search"
         title="Search YouTube"
         message="Find music videos on YouTube and play them here in the official player."
+      />
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <EmptyState
+        icon="lock"
+        title="Sign in to search YouTube"
+        message="YouTube search runs on the server and uses a shared daily quota, so it is available to signed-in listeners only."
+        action={
+          <Link to="/login" className="btn-primary px-5 py-2.5">
+            Sign in
+          </Link>
+        }
       />
     )
   }

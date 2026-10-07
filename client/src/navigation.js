@@ -5,7 +5,9 @@ export const NAV_ITEMS = [
   { to: '/search', label: 'Search', icon: 'search' },
   { to: '/library', label: 'Library', icon: 'heart' },
   { to: '/playlists', label: 'Playlists', icon: 'playlist' },
-  { to: '/upload', label: 'Upload', icon: 'upload', requiresAuth: true },
+  // requiresUploads: hidden when the server reports uploads are disabled, which
+  // is the case on a host with no persistent disk for uploaded audio.
+  { to: '/upload', label: 'Upload', icon: 'upload', requiresAuth: true, requiresUploads: true },
   { to: '/following', label: 'Following', icon: 'users', requiresAuth: true },
   { to: '/profile', label: 'Profile', icon: 'user', requiresAuth: true },
   { to: '/settings', label: 'Settings', icon: 'settings', requiresAuth: true },

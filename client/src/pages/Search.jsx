@@ -14,6 +14,7 @@ import Icon from '../components/ui/Icon'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { compactNumber, cx, truncate } from '../utils/format'
 import YouTubeResults from '../components/music/YouTubeResults'
+import UploadCta from '../components/music/UploadCta'
 import { youtubeService } from '../services/youtube'
 
 const TABS = [
@@ -315,10 +316,10 @@ export default function Search() {
           title={`No results for "${q}"`}
           message="Try a different spelling, or search for an artist name instead."
           action={
-            <Link to="/upload" className="btn-ghost px-5 py-2.5">
+            <UploadCta className="btn-ghost px-5 py-2.5">
               <Icon name="upload" className="h-4 w-4" />
               Upload this song
-            </Link>
+            </UploadCta>
           }
         />
       ) : (

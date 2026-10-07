@@ -12,6 +12,7 @@ import Icon from '../components/ui/Icon'
 import EmptyState from '../components/ui/EmptyState'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { compactNumber, timeAgo, truncate } from '../utils/format'
+import UploadCta from '../components/music/UploadCta'
 
 const TABS = [
   { key: 'songs', label: 'Songs' },
@@ -92,10 +93,9 @@ export default function Profile() {
             ) : null}
 
             {isSelf ? (
-              <Link to="/upload" className="btn-ghost px-5 py-3">
-                <Icon name="upload" className="h-4 w-4" />
+              <UploadCta className="btn-ghost px-5 py-3">
                 Upload
-              </Link>
+              </UploadCta>
             ) : (
               <button
                 type="button"
@@ -138,7 +138,7 @@ export default function Profile() {
               icon="music"
               title={isSelf ? 'You haven\'t uploaded anything yet' : 'No songs yet'}
               message={isSelf ? 'Share your first track with the community.' : 'This artist hasn\'t published any tracks yet.'}
-              action={isSelf ? <Link to="/upload" className="btn-primary px-6 py-3"><Icon name="upload" className="h-4 w-4" />Upload a track</Link> : null}
+              action={isSelf ? <UploadCta className="btn-primary px-6 py-3" /> : null}
             />
           )
         ) : null}

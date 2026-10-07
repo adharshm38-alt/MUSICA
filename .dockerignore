@@ -1,0 +1,37 @@
+# Keep the build context small and, more importantly, keep secrets out of it.
+#
+# .env files are listed here as a second line of defence. The server/.env on this
+# machine holds a real YouTube API key and a MongoDB URI; neither should ever be
+# copied into an image layer, and .gitignore already keeps them out of git.
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+server/.env
+client/.env
+client/.env.*
+
+# Dependencies (rebuilt inside the image)
+node_modules
+**/node_modules
+
+# Build output and platform projects (the container runs the API only)
+client/dist
+client/android
+.render
+.git
+.gitignore
+
+# User media - never bake uploaded audio into an image
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Logs, caches, editor noise
+*.log
+npm-debug.log*
+.DS_Store
+.vscode
+.idea
+coverage
+*.tsbuildinfo

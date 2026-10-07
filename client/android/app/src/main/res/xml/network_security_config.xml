@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MUSICA streams audio from a self-hosted backend. During development that is
-  usually http://<your-lan-ip>:5000, so cleartext is permitted for any host.
-  For a production deployment behind HTTPS, delete this file and the
-  android:usesCleartextTraffic / networkSecurityConfig attributes from
-  AndroidManifest.xml.
+  Production network policy: HTTPS only.
+
+  MUSICA's production API is served over public HTTPS, and YouTube's official
+  embedded player is loaded from https://www.youtube-nocookie.com. Nothing in a
+  production build needs cleartext, so it is disabled outright rather than being
+  allowed for every host.
+
+  Local development against a LAN backend (http://192.168.x.x:5000) is handled by
+  the sibling debug source set, which allows cleartext for specific hosts only:
+    client/android/app/src/debug/res/xml/network_security_config.xml
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>

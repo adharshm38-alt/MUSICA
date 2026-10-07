@@ -43,6 +43,24 @@ export const config = {
   maxImageSizeMb: Number(process.env.MAX_IMAGE_SIZE_MB) || 5,
 
   /**
+   * Whether first-party uploads are accepted.
+   *
+   * Uploaded audio is written to the local filesystem. On a container host with
+   * an ephemeral disk (for example Render's free tier, which also spins down
+   * after 15 minutes idle) those files disappear on the next deploy or spin-down,
+   * leaving song records in the database whose audio 404s.
+   *
+   * Set UPLOADS_ENABLED=false in that situation. The upload UI is then hidden
+   * and the upload endpoint returns 503, so users are never offered a feature
+   * that cannot work. Development keeps uploads on by default, so nothing about
+   * local development changes.
+   *
+   * Existing uploaded songs keep playing either way; this only controls new
+   * uploads.
+   */
+  uploadsEnabled: process.env.UPLOADS_ENABLED !== 'false',
+
+  /**
    * YouTube Data API (discovery only).
    *
    * The key is server-side ONLY. It is never sent to the browser, never

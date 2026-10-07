@@ -8,6 +8,7 @@ import SectionHeader from '../components/ui/SectionHeader'
 import EmptyState from '../components/ui/EmptyState'
 import { CardSkeletonRail } from '../components/ui/Skeleton'
 import Icon from '../components/ui/Icon'
+import UploadCta from '../components/music/UploadCta'
 
 /** Discover = browse by genre and see what's popular right now. */
 export default function Discover() {
@@ -107,10 +108,10 @@ export default function Discover() {
           title="Nothing to discover yet"
           message="Be the first to upload a track. Once you do, it'll show up here for everyone to hear."
           action={
-            <Link to="/upload" className="btn-primary px-6 py-3">
+            <UploadCta className="btn-primary px-6 py-3">
               <Icon name="upload" className="h-4 w-4" />
               Upload music
-            </Link>
+            </UploadCta>
           }
         />
       )}

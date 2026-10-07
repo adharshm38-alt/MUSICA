@@ -1,0 +1,79 @@
+# Render blueprint for MUSICA.
+#
+# HOW TO USE
+# ----------
+#   1. Push this file to the default branch (it is committed).
+#   2. In Render: New -> Blueprint -> point at this repository.
+#   3. Render creates both services below.
+#   4. Set the secrets listed under "sync: false" in the Render dashboard.
+#      They are intentionally NOT in this file and must never be committed.
+#   5. Render assigns *.onrender.com HTTPS URLs automatically. No domain needed.
+#
+# SECURITY NOTE
+# -------------
+# Every secret below is `sync: false`, which means Render prompts for it instead
+# of storing a value in git. The YouTube Data API key and the JWT secret must
+# only ever exist as Render environment variables.
+
+services:
+  # ---------------------------------------------------------------------
+  # API: Express + MongoDB (Atlas)
+  # ---------------------------------------------------------------------
+  - type: web
+    name: musica-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    # Set UPLOADS_ENABLED=false because the free plan has no persistent disk:
+    # anything written to server/uploads is lost on spin-down and redeploy.
+    # Existing uploaded songs keep playing; only NEW uploads are refused.
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: UPLOADS_ENABLED
+        value: "false"
+      # ---- Secrets: fill these in the Render dashboard ----
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: YOUTUBE_API_KEY
+        sync: false
+      # ---- Public values ----
+      # CORS allowlist. Update this to the static site's URL once Render has
+      # assigned it; Render supports a comma-separated list.
+      - key: CLIENT_URL
+        sync: false
+      - key: YOUTUBE_CACHE_TTL_SECONDS
+        value: "86400"
+      - key: YOUTUBE_MAX_RESULTS
+        value: "25"
+      - key: MAX_AUDIO_SIZE_MB
+        value: "25"
+      - key: MAX_IMAGE_SIZE_MB
+        value: "5"
+
+  # ---------------------------------------------------------------------
+  # Frontend: React + Vite, built and served as a static site
+  # ---------------------------------------------------------------------
+  - type: web
+    name: musica-web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./client/dist
+    # VITE_API_URL is baked into the bundle at build time. It must be the API's
+    # public HTTPS URL, which Render only assigns after the first deploy, so you
+    # will set it once and then trigger a rebuild.
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # Single-page app: every path must return index.html so client-side
+      # routing (e.g. /search, /library, /playlist/:id) works on a hard refresh.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    # Render's static sites include automatic TLS and a CDN.

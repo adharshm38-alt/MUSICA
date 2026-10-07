@@ -13,6 +13,7 @@ import EmptyState from '../components/ui/EmptyState'
 import Icon from '../components/ui/Icon'
 import { RowSkeleton, CardSkeletonRail } from '../components/ui/Skeleton'
 import { cx } from '../utils/format'
+import UploadCta from '../components/music/UploadCta'
 
 const TABS = [
   { key: 'liked', label: 'Liked Songs', icon: 'heart' },
@@ -181,10 +182,10 @@ function EmptyStateForTab({ tab, user }) {
       title="You haven't uploaded anything yet"
       message={`Share your own music, ${user?.displayName || 'and let people hear it'}.`}
       action={
-        <Link to="/upload" className="btn-primary px-6 py-3">
+        <UploadCta className="btn-primary px-6 py-3">
           <Icon name="upload" className="h-4 w-4" />
           Upload a track
-        </Link>
+        </UploadCta>
       }
     />
   )

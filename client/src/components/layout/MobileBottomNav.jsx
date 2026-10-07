@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { MOBILE_NAV, NAV_ITEMS } from '../../navigation'
 import { useAuth } from '../../context/AuthContext'
+import { useServerConfig } from '../../config/serverConfig'
 import { useToast } from '../../context/ToastContext'
 import { cx } from '../../utils/format'
 import Icon from '../ui/Icon'
@@ -13,12 +14,19 @@ export default function MobileBottomNav() {
   const { isAuthenticated } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
+  const { uploadsEnabled } = useServerConfig()
 
   const items = NAV_ITEMS.filter((item) => MOBILE_NAV.includes(item.to))
 
   // Secondary actions reachable from the "+" / more button.
+  // Items that depend on a durable upload store are omitted when the server has
+  // uploads disabled, matching the sidebar.
   const secondary = NAV_ITEMS.filter(
-    (item) => !MOBILE_NAV.includes(item.to) && item.requiresAuth && isAuthenticated,
+    (item) =>
+      !MOBILE_NAV.includes(item.to)
+      && item.requiresAuth
+      && isAuthenticated
+      && !(item.requiresUploads && !uploadsEnabled),
   )
 
   return (

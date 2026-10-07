@@ -21,6 +21,7 @@ const PlaylistDetail = lazy(() => import('./pages/PlaylistDetail'))
 const ArtistProfile = lazy(() => import('./pages/ArtistProfile'))
 const Admin = lazy(() => import('./pages/Admin'))
 const Report = lazy(() => import('./pages/Report'))
+  const RequireUploads = lazy(() => import('./components/auth/RequireUploads'))
 
 /** Route guard: redirects to /login if not signed in. */
 function RequireAuth({ children }) {
@@ -84,7 +85,9 @@ export default function App() {
             path="/upload"
             element={
               <RequireAuth>
-                <Upload />
+                <RequireUploads>
+                  <Upload />
+                </RequireUploads>
               </RequireAuth>
             }
           />

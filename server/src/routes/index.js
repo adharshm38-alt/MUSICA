@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import config from '../config/env.js'
 import authRoutes from './auth.routes.js'
 import userRoutes from './user.routes.js'
 import songRoutes from './song.routes.js'
@@ -14,6 +15,26 @@ const router = Router()
 // Small health check - handy for verifying the backend is up.
 router.get('/health', (_req, res) => {
   res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } })
+})
+
+/**
+ * Public capability flags.
+ *
+ * Lets the front end adapt to how this particular deployment is configured -
+ * most importantly, hiding the upload UI when the host cannot durably store
+ * uploaded files (ephemeral container disk).
+ *
+ * Only booleans are exposed. No key, URI or host name is returned here, so this
+ * endpoint is safe to call without authentication.
+ */
+router.get('/config', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      uploadsEnabled: config.uploadsEnabled,
+      youtubeEnabled: Boolean(config.youtube.apiKey),
+    },
+  })
 })
 
 router.use('/auth', authRoutes)
