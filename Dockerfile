@@ -8,10 +8,22 @@
 FROM node:22-slim AS deps
 WORKDIR /app
 
-# Copy only the manifests first so the npm install layer is cached until
-# dependencies actually change.
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+# This repository is an npm WORKSPACES monorepo: the root package.json declares
+# "workspaces": ["client", "server"], there is a single package-lock.json at the
+# root, and the server's real dependencies (express, mongoose, dotenv, ...) are
+# declared in server/package.json - NOT at the root.
+#
+# Every workspace manifest must therefore be present BEFORE `npm ci` runs. If only
+# the root manifests are copied, `npm ci` still exits 0 but installs just the
+# root's own dev dependency, and the server then dies at runtime with
+# "Cannot find package 'dotenv'".
+COPY package.json package-lock.json ./
+COPY server/package.json ./server/package.json
+COPY client/package.json ./client/package.json
+
+# --workspace server installs the API's dependency tree (hoisted to /app/node_modules
+# by npm) without pulling in the React client, which this image does not serve.
+RUN npm ci --omit=dev --workspace server
 
 # ---------- Stage 2: runtime ----------
 FROM node:22-slim AS runtime
