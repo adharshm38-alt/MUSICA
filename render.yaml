@@ -9,6 +9,11 @@
 #      They are intentionally NOT in this file and must never be committed.
 #   5. Render assigns *.onrender.com HTTPS URLs automatically. No domain needed.
 #
+# NOTE ON SERVICE NAMES: onrender.com hostnames are globally unique across all
+# Render accounts, so a generic name like "musica-api" is often already taken by
+# an unrelated service. The names below are prefixed with the GitHub username to
+# make a collision effectively impossible.
+#
 # SECURITY NOTE
 # -------------
 # Every secret below is `sync: false`, which means Render prompts for it instead
@@ -20,7 +25,7 @@ services:
   # API: Express + MongoDB (Atlas)
   # ---------------------------------------------------------------------
   - type: web
-    name: musica-api
+    name: adharshm38-musica-api
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
@@ -60,7 +65,7 @@ services:
   # Frontend: React + Vite, built and served as a static site
   # ---------------------------------------------------------------------
   - type: web
-    name: musica-web
+    name: adharshm38-musica-web
     runtime: static
     buildCommand: npm ci && npm run build
     staticPublishPath: ./client/dist
