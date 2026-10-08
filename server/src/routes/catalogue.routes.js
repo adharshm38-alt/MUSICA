@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import rateLimit from 'express-rate-limit'
 import * as catalogue from '../controllers/catalogue.controller.js'
-import { optionalAuth } from '../middleware/auth.js'
+import { optionalAuth, requireAuth } from '../middleware/auth.js'
 
 /**
  * Catalogue routes: source-aware Home and unified Search.
@@ -49,7 +49,14 @@ const catalogueSearchLimiter = rateLimit({
   },
 })
 
-router.get('/search', optionalAuth, catalogueSearchLimiter, catalogue.search)
+// Auth is REQUIRED, not optional, on the search route.
+//
+// An upstream search costs a YouTube search.list call from a single shared daily
+// budget. With optionalAuth, anyone could drain that budget with unauthenticated
+// requests while the UI showed "Sign in to search music". The client already
+// gates this screen, so requiring a token here closes the direct-API path without
+// changing what a signed-in listener can do.
+router.get('/search', requireAuth, catalogueSearchLimiter, catalogue.search)
 
 /** Playback resolution for one track. */
 router.get('/track/:sourceId/:sourceTrackId', optionalAuth, catalogue.resolve)
