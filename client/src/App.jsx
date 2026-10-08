@@ -9,7 +9,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import NotFound from './pages/NotFound'
 
-const Discover = lazy(() => import('./pages/Discover'))
+const Explore = lazy(() => import('./pages/Explore'))
 const Search = lazy(() => import('./pages/Search'))
 const Library = lazy(() => import('./pages/Library'))
 const Playlists = lazy(() => import('./pages/Playlists'))
@@ -59,7 +59,10 @@ export default function App() {
         {/* Everything else lives inside the app shell */}
         <Route element={<AppShell />}>
           <Route index element={<Home />} />
-          <Route path="/discover" element={<Discover />} />
+          {/* /explore is the current name; /discover stays as a redirect so any
+              existing bookmark or shared link keeps working. */}
+          <Route path="/explore" element={<Explore />} />
+          <Route path="/discover" element={<Navigate to="/explore" replace />} />
           <Route path="/search" element={<Search />} />
           <Route path="/report" element={<Report />} />
 

@@ -1,6 +1,6 @@
 {
   "name": "musica",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "private": true,
   "description": "MUSICA - a community music sharing and streaming platform",
   "workspaces": [

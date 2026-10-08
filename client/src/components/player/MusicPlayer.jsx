@@ -1,25 +1,27 @@
+import { useState } from 'react'
 import { usePlayer } from '../../context/PlayerContext'
-import { useAuth } from '../../context/AuthContext'
-import { useToast } from '../../context/ToastContext'
 import { useSocial } from '../../hooks/useSocial'
 import { formatTime, cx } from '../../utils/format'
-import Icon from '../ui/Icon'
-import { HeartIcon } from '../ui/Icon'
-import Visualizer from '../music/Visualizer'
+import Icon, { HeartIcon } from '../ui/Icon'
 import ProgressBar from './ProgressBar'
 import SongCover from '../music/SongCover'
+import PlayPauseButton from './PlayPauseButton'
 
 /**
- * Persistent player.
- *  - Desktop: full-width bar pinned to the bottom.
- *  - Mobile: compact strip that opens the full-screen player when tapped.
+ * The persistent player.
+ *
+ *  - Desktop: a wide bar pinned to the bottom with full transport.
+ *  - Mobile: a compact dock above the bottom navigation.
+ *
+ * Two invariants this component must not break:
+ *
+ *   1. ONE audio element. Playback is owned entirely by PlayerContext and the
+ *      shared HTMLAudioElement. Nothing here constructs or renders an <audio>.
+ *   2. The official YouTube player stays visible. For a YouTube track the dock
+ *      re-opens the persistent YouTube stage (see YouTubeStage) instead of this
+ *      bar pretending to be a player.
  */
 export default function MusicPlayer() {
-  const player = usePlayer()
-  const { isAuthenticated } = useAuth()
-  const toast = useToast()
-  const { toggleLike, busyIds } = useSocial()
-
   const {
     currentSong,
     isPlaying,
@@ -42,14 +44,17 @@ export default function MusicPlayer() {
     isYouTube,
     canControlVolume,
     openYouTubeStage,
-  } = player
+    openQueue,
+  } = usePlayer()
+
+  const { toggleLike, busyIds } = useSocial()
 
   const hasSong = Boolean(currentSong)
   const artistLabel = currentSong?.artistName || currentSong?.artist?.displayName || 'Unknown artist'
 
   // The player tracks the liked song by id, so hand the heart a song object
-  // whose isLiked mirrors that state. toggleLike writes the result straight
-  // back into the PlayerContext, so both hearts stay in sync.
+  // whose isLiked mirrors that state. toggleLike writes the result straight back
+  // into PlayerContext, so every heart stays in sync.
   const likeTarget = currentSong
     ? { ...currentSong, isLiked, likeCount: currentSong.likeCount ?? 0 }
     : null
@@ -61,9 +66,9 @@ export default function MusicPlayer() {
   }
 
   if (!hasSong) {
-    // Idle placeholder so the layout never jumps.
+    // Idle placeholder so the layout never jumps when the first song starts.
     return (
-      <div className="glass-strong fixed inset-x-0 bottom-0 z-30 hidden lg:block">
+      <div className="glass-dock fixed inset-x-0 bottom-0 z-30 hidden border-t lg:block">
         <div className="flex h-[88px] items-center justify-center gap-2 text-sm text-muted">
           <Icon name="music" className="h-4 w-4" />
           Pick a song to start listening
@@ -75,20 +80,22 @@ export default function MusicPlayer() {
   // ---------- Desktop ----------
   const desktop = (
     <div className="hidden lg:block">
-      <div className="glass-strong fixed inset-x-0 bottom-0 z-30 border-t border-white/10 lg:left-[260px]">
+      <div className="glass-dock fixed inset-x-0 bottom-0 z-30 border-t lg:left-[260px]">
         <div className="grid h-[88px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-4">
-          {/* Left: artwork + title */}
+          {/* Left: artwork + identity */}
           <div className="flex min-w-0 items-center gap-3">
             <SongCover song={currentSong} size="sm" rounded="rounded-lg" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">{currentSong.title}</p>
-              <p className="truncate text-xs text-muted">{artistLabel}</p>
+              <p className="truncate text-xs text-muted">
+                {isYouTube ? `YouTube · ${artistLabel}` : artistLabel}
+              </p>
             </div>
 
             <button
               type="button"
               onClick={handleLike}
-              className="btn-icon ml-1"
+              className="touch-target"
               aria-label={isLiked ? 'Unlike this song' : 'Like this song'}
               aria-pressed={isLiked}
               disabled={likePending}
@@ -102,7 +109,7 @@ export default function MusicPlayer() {
               <button
                 type="button"
                 onClick={openYouTubeStage}
-                className="ml-1 shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-bold tracking-wide text-soft uppercase transition-colors hover:bg-white/10 hover:text-white"
+                className="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-bold tracking-wide text-soft uppercase transition-colors hover:bg-white/10 hover:text-white"
                 aria-label="Show the YouTube player"
               >
                 YouTube
@@ -112,7 +119,7 @@ export default function MusicPlayer() {
 
           {/* Center: transport */}
           <div className="flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={toggleShuffle}
@@ -127,14 +134,7 @@ export default function MusicPlayer() {
                 <Icon name="prev" className="h-5 w-5" filled />
               </button>
 
-              <button
-                type="button"
-                onClick={toggle}
-                className="grid h-11 w-11 place-items-center rounded-full bg-white text-base-900 transition-transform duration-200 hover:scale-105 active:scale-95"
-                aria-label={isPlaying ? 'Pause' : 'Play'}
-              >
-                <Icon name={isPlaying ? 'pause' : 'play'} className="h-5 w-5" filled strokeWidth={2.2} />
-              </button>
+              <PlayPauseButton isPlaying={isPlaying} onClick={toggle} size="md" />
 
               <button type="button" onClick={next} className="btn-icon" aria-label="Next track">
                 <Icon name="next" className="h-5 w-5" filled />
@@ -165,12 +165,9 @@ export default function MusicPlayer() {
           </div>
 
           {/* Right: volume + queue */}
-          <div className="flex items-center justify-end gap-2">
-            <Visualizer isPlaying={isPlaying} className="mr-1" />
-
+          <div className="flex items-center justify-end gap-1">
             {/* YouTube's official player does not permit programmatic volume
-                control, so we hide our slider rather than ship a control that
-                silently does nothing. Volume lives on the player itself. */}
+                control, so we show a link to it rather than ship a dead slider. */}
             {canControlVolume ? (
               <>
                 <button
@@ -190,12 +187,9 @@ export default function MusicPlayer() {
                   value={isMuted ? 0 : volume}
                   onChange={(event) => setVolume(Number(event.target.value))}
                   aria-label="Volume"
-                  className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/10
-                         [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3
-                         [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
-                         [&::-webkit-slider-thumb]:bg-white"
+                  className="slider-track w-24"
                   style={{
-                    background: `linear-gradient(to right, #8b5cf6 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.1) ${(isMuted ? 0 : volume) * 100}%)`,
+                    background: `linear-gradient(to right, #a78bfa ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.15) ${(isMuted ? 0 : volume) * 100}%)`,
                   }}
                 />
               </>
@@ -211,12 +205,7 @@ export default function MusicPlayer() {
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => toast.info('Queue view coming soon.')}
-              className="btn-icon"
-              aria-label="Open queue"
-            >
+            <button type="button" onClick={openQueue} className="btn-icon" aria-label="Open queue">
               <Icon name="queue" className="h-[18px] w-[18px]" />
             </button>
           </div>
@@ -225,36 +214,70 @@ export default function MusicPlayer() {
     </div>
   )
 
-  // ---------- Mobile compact ----------
+  // ---------- Mobile dock (persistent mini-player) ----------
+  // Laid out as real sibling buttons rather than one big button wrapping nested
+  // controls: nested interactive elements are invalid HTML, and it previously
+  // made previous/next unreachable on touch.
   const mobile = (
-    <div className="fixed inset-x-0 bottom-[57px] z-30 px-2 lg:hidden">
-      <button
-        type="button"
-        onClick={isYouTube ? openYouTubeStage : openFullPlayer}
-        className="glass-strong flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left shadow-xl shadow-black/40"
-        aria-label={isYouTube ? 'Show the YouTube player' : 'Open full player'}
-      >
-        <SongCover song={currentSong} size="sm" rounded="rounded-lg" />
-
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">{currentSong.title}</p>
-          <p className="truncate text-xs text-muted">{artistLabel}</p>
+    <div className="fixed inset-x-0 bottom-[60px] z-30 px-2 lg:hidden">
+      <div className="glass-dock relative flex w-full items-center gap-1 overflow-hidden rounded-2xl px-1.5 py-1.5 shadow-xl shadow-black/50">
+        {/* Hairline progress across the top of the dock. This is how a native
+            app signals playback position without spending vertical space. */}
+        <div className="absolute inset-x-0 top-0 h-[2px] bg-white/10">
+          <ProgressBar
+            value={currentTime}
+            max={duration}
+            onChange={seek}
+            variant="hairline"
+            label="Seek"
+          />
         </div>
 
-        <Visualizer isPlaying={isPlaying} bars={4} />
-
-        <span
-          onClick={(event) => {
-            event.stopPropagation()
-            toggle()
-          }}
-          role="button"
-          tabIndex={-1}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-base-900"
+        {/* Artwork + identity open the full player. */}
+        <button
+          type="button"
+          onClick={isYouTube ? openYouTubeStage : openFullPlayer}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 text-left
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+          aria-label={isYouTube ? 'Show the YouTube player' : `Open full player: ${currentSong.title}`}
         >
-          <Icon name={isPlaying ? 'pause' : 'play'} className="h-4 w-4" filled strokeWidth={2.2} />
-        </span>
-      </button>
+          <SongCover song={currentSong} size="sm" rounded="rounded-lg" />
+
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-white">
+              {currentSong.title}
+            </span>
+            <span className="block truncate text-xs text-muted">
+              {isYouTube ? `YouTube · ${artistLabel}` : artistLabel}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={prev}
+          className="touch-target"
+          aria-label="Previous track"
+        >
+          <Icon name="prev" className="h-5 w-5" filled />
+        </button>
+
+        <PlayPauseButton
+          isPlaying={isPlaying}
+          onClick={toggle}
+          size="sm"
+          className="!bg-white !text-base-900"
+        />
+
+        <button
+          type="button"
+          onClick={next}
+          className="touch-target"
+          aria-label="Next track"
+        >
+          <Icon name="next" className="h-5 w-5" filled />
+        </button>
+      </div>
     </div>
   )
 

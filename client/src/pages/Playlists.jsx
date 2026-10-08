@@ -146,7 +146,7 @@ export default function Playlists() {
                 New playlist
               </button>
             ) : (
-              <Link to="/discover" className="btn-ghost px-6 py-3">Browse music</Link>
+              <Link to="/explore" className="btn-ghost px-6 py-3">Browse music</Link>
             )
           }
         />

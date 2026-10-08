@@ -18,7 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
-const APP = 'http://127.0.0.1:5173/'
+const APP = 'http://localhost:5173/'
 const API = 'http://localhost:5000/api'
 const PORT = 9578
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))

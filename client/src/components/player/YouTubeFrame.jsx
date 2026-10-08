@@ -2,13 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlayer } from '../../context/PlayerContext'
 import { createYouTubeEngine } from '../../context/playback/engines'
 import Icon from '../ui/Icon'
+import { cx } from '../../utils/format'
 
-/** Human-readable messages for the official player's documented error codes. */
+/**
+ * Human-readable messages for the official player's documented error codes.
+ *
+ * MUSICA never attempts to work around any of these. If YouTube declines to play
+ * a video through the official player, the honest outcome is to say so and let
+ * the listener pick something else.
+ */
 function describeError(code) {
-  if (code === 101 || code === 150) return 'The creator has disabled embedding for this video.'
-  if (code === 100) return 'This video is no longer available.'
-  if (code === 101) return 'This video cannot be played here.'
-  return 'The YouTube player reported an error.'
+  if (code === 150 || code === 101) return 'This track can’t be played here — the creator has disabled embedding.'
+  if (code === 100) return 'This track can’t be played here — the video is no longer available.'
+  if (code === 2) return 'This track can’t be played here — the video is invalid.'
+  if (code === 5) return 'This track can’t be played here — the video cannot be played in this context.'
+  return 'This track can’t be played here — the YouTube player reported an error.'
 }
 
 /**
@@ -29,7 +37,7 @@ function describeError(code) {
  * PlayerContext, which is what lets the existing play/pause/seek actions work
  * for YouTube tracks without changing their public signatures.
  */
-export default function YouTubeFrame({ song, className = '' }) {
+export default function YouTubeFrame({ song, compact = false, className = '' }) {
   const hostRef = useRef(null)
   const engineRef = useRef(null)
   const { registerYouTubeEngine, setYouTubeState } = usePlayer()
@@ -100,14 +108,23 @@ export default function YouTubeFrame({ song, className = '' }) {
         className="aspect-video w-full overflow-hidden rounded-panel bg-black ring-1 ring-white/10"
       />
 
-      {/* Attribution - required when presenting third-party content. */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{song?.title}</p>
-          <p className="truncate text-xs text-muted">
-            {song?.youtubeChannelTitle || song?.artistName || 'Unknown channel'}
-          </p>
-        </div>
+      {/* Attribution - required when presenting third-party content. In compact
+          mode the dock header already shows title + channel, so only the link
+          and the source label are repeated here. */}
+      <div
+        className={cx(
+          'flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03]',
+          compact ? 'px-3 py-1.5' : 'px-4 py-3',
+        )}
+      >
+        {compact ? null : (
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">{song?.title}</p>
+            <p className="truncate text-xs text-muted">
+              {song?.youtubeChannelTitle || song?.artistName || 'Unknown channel'}
+            </p>
+          </div>
+        )}
 
         <div className="flex shrink-0 items-center gap-2">
           <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold tracking-wide text-soft uppercase">

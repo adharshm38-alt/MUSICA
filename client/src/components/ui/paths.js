@@ -63,3 +63,7 @@ Object.assign(PATHS, {
 // Added for the Android "Music server" settings field.
 PATHS.server =
   'M4 4h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM4 14h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM7.5 6.5h.01M7.5 16.5h.01'
+
+// Added for the music catalogue Home page (regional / worldwide discovery).
+PATHS.globe =
+  'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.6 9h16.8M3.6 15h16.8M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18'

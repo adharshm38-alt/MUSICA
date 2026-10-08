@@ -22,7 +22,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const APP = 'http://127.0.0.1:5173/'
+const APP = 'http://localhost:5173/'
 const API = 'http://localhost:5000/api'
 const PORT = 9580
 const QUERY = process.env.YT_QUERY || 'the weeknd blinding lights official'
@@ -162,47 +162,62 @@ check('server reports YouTube configured', ytStatus?.data?.configured === true,
   JSON.stringify(ytStatus?.data?.message))
 
 // -------------------------------------------------------------------- 3 ---
-step(3, 'YouTube tab visible')
+step(3, 'Music search is the default, cross-source view')
+// The debounced search fires ~320ms after the page settles, so the request
+// lands DURING step 3's settle sleep. Snapshot the network log before
+// navigating, not after, or this window is already empty when we look at it.
+const beforeCount = network.length
 await send('browsingContext.navigate', { context, url: `${APP}search?q=${encodeURIComponent(QUERY)}`, wait: 'complete' })
-await sleep(5000)
+await sleep(7000)
+
 const tabs = await ev(`[...document.querySelectorAll('[role="tab"]')].map(t=>t.textContent.trim())`)
 console.log('  tabs:', JSON.stringify(tabs))
-check('YouTube tab is present', JSON.stringify(tabs).includes('YouTube'))
-check('clicked the YouTube tab', await clickByText('YouTube', '[role="tab"]') === true)
+// Search is no longer split into a YouTube-first tab: the default "Music" tab
+// queries every source at once, so the source is a property of a result rather
+// than of the navigation. Assert the new default is present and selected.
+check('Music tab is present', JSON.stringify(tabs).includes('Music'))
+check('no separate YouTube-first tab', !JSON.stringify(tabs).includes('YouTube'))
+const musicSelected = await ev(`[...document.querySelectorAll('[role="tab"]')].find(t=>t.getAttribute('aria-selected')==='true')?.textContent.trim()`)
+check('Music tab is selected by default', musicSelected === 'Music', musicSelected)
 
 // ---------------------------------------------------------------- 4 & 5 ---
 step(4, `Searching for a real song ("${QUERY}")`)
-const beforeCount = network.length
-await sleep(7000)
 
 const results = await ev(`(() => ({
   articles: document.querySelectorAll('article').length,
-  titles: [...document.querySelectorAll('article h3')].map(h => h.textContent.trim()),
+  titles: [...document.querySelectorAll('article')].map(a => {
+    const p = [...a.querySelectorAll('p')].map(x => x.textContent.trim());
+    return p[0] || '';
+  }),
   metas: [...document.querySelectorAll('article')].map(a => {
     const ps = [...a.querySelectorAll('p')].map(p => p.textContent.trim());
-    return ps.find(t => /views/.test(t)) || '';
+    return ps.find(t => /views/i.test(t)) || ps[1] || '';
   }),
-  playButtons: [...document.querySelectorAll('article button')].filter(b => b.textContent.trim() === 'Play').length,
-  links: document.querySelectorAll('a[href*="youtube.com/watch"]').length,
+  // Play controls are labelled by aria-label, not by a literal "Play" text node.
+  playButtons: document.querySelectorAll('button[aria-label^="Play "]').length,
+  ytBadges: [...document.querySelectorAll('article')].filter(a => /YOUTUBE/i.test(a.innerText)).length,
   thumbs: [...document.querySelectorAll('article img')].filter(i => (i.currentSrc || i.src || '').includes('ytimg')).length,
-  disabledBadges: [...document.querySelectorAll('article')].filter(a => a.innerText.includes('Embedding disabled')).length,
+  hasArtists: /Artists/.test(document.body.innerText),
+  hasCollections: /Collections/.test(document.body.innerText),
 }))()`)
 console.log('  real results:')
-;(results?.titles || []).forEach((t, i) => console.log(`    ${i + 1}. ${t}\n       ${results?.metas?.[i] || ''}`))
-check('real YouTube results rendered', (results?.articles || 0) > 0, 'articles=' + results?.articles)
-check('results carry real YouTube metadata',
+;(results?.titles || []).slice(0, 6).forEach((t, i) => console.log(`    ${i + 1}. ${t}\n       ${results?.metas?.[i] || ''}`))
+check('real results rendered', (results?.articles || 0) > 0, 'articles=' + results?.articles)
+check('results carry real metadata',
   (results?.titles || []).every((t) => t && t.length > 1) && (results?.articles || 0) > 0)
-check('view counts shown', (results?.metas || []).some((m) => /views/.test(m || '')))
-check('each result links out to YouTube', (results?.links || 0) === results?.articles,
-  `${results?.links} links / ${results?.articles} results`)
+check('each result has a Play control', (results?.playButtons || 0) > 0, 'playButtons=' + results?.playButtons)
+check('source shown as a per-result badge, not a tab', (results?.ytBadges || 0) > 0,
+  'badges=' + results?.ytBadges)
 check('thumbnails loaded from YouTube', (results?.thumbs || 0) > 0, 'thumbs=' + results?.thumbs)
+check('Artists section present', results?.hasArtists === true)
+check('Collections section present', results?.hasCollections === true)
 
 // In BiDi's network.responseCompleted the URL lives at params.request.url,
 // NOT params.url. Reading the wrong path makes every check below vacuously
 // true, so extract it explicitly.
 const netUrl = (n) => n?.request?.url || n?.url || ''
 
-const ytApiCalls = network.slice(beforeCount).filter((n) => /\/api\/youtube\/search/.test(netUrl(n)))
+const ytApiCalls = network.slice(beforeCount).filter((n) => /\/api\/catalogue\/search/.test(netUrl(n)))
 check('results came from our own backend route (not googleapis.com)',
   ytApiCalls.length > 0, `calls=${ytApiCalls.length}`)
 const directGoogle = network.slice(beforeCount).filter((n) => /googleapis\.com/.test(netUrl(n)))
@@ -211,7 +226,21 @@ check('browser never called googleapis.com directly', directGoogle.length === 0,
 
 // -------------------------------------------------------------------- 6 ---
 step(6, 'Selecting a result')
-check('clicked Play on the first result', await clickByText('Play') === true)
+const playPos = await ev(`(() => {
+  const el = document.querySelectorAll('button[aria-label^="Play "]')[0];
+  if (!el || el.disabled) return null;
+  el.scrollIntoView({ block: 'center' });
+  const b = el.getBoundingClientRect();
+  if (!b.width || !b.height) return null;
+  return { x: Math.round(b.x + b.width/2), y: Math.round(b.y + b.height/2) };
+})()`)
+let clickedResult = false
+if (playPos && Number.isFinite(playPos.x)) {
+  await send('input.performActions', { context, actions: [{ type:'pointer', id:'mouse', parameters:{pointerType:'mouse'}, actions:[
+    { type:'pointerMove', x:playPos.x, y:playPos.y }, { type:'pointerDown', button:0 }, { type:'pointerUp', button:0 }] }] })
+  clickedResult = true
+}
+check('clicked Play on the first result', clickedResult === true)
 await sleep(10000)
 
 // -------------------------------------------------------------------- 7 ---

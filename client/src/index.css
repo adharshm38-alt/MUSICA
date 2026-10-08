@@ -28,12 +28,100 @@
   --radius-card: 1rem;
   --radius-panel: 1.25rem;
 
+  /* Premium surfaces. Larger radii are what separate a "web page with cards"
+     from a native-feeling music app, so the player surfaces get their own. */
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+  --radius-3xl: 2.5rem;
+
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-fade-in: fade-in 0.35s ease both;
   --animate-scale-in: scale-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-slide-up: slide-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-pulse-ring: pulse-ring 1.6s ease-out infinite;
   --animate-spin-slow: spin 18s linear infinite;
+
+  /* --- Premium player motion ---
+     Kept short and transform/opacity-only so they stay cheap on Android:
+     animating layout properties is what causes jank on mid-range phones. */
+  --animate-sheet-up: sheet-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-sheet-down: sheet-down 0.24s cubic-bezier(0.4, 0, 1, 1) both;
+  --animate-art-swap: art-swap 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-press: press 0.12s ease-out;
+}
+
+/* Mini-player expanding into the full player. Both surfaces share the same
+   easing so the handoff reads as one continuous motion rather than a cut. */
+@keyframes sheet-up {
+  from {
+    opacity: 0;
+    transform: translateY(6%) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes sheet-down {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4%) scale(0.99);
+  }
+}
+
+/* Artwork changing track: a brief scale-down/up, subtle enough to read as
+   "the cover swapped" rather than a flash. */
+@keyframes art-swap {
+  0% {
+    opacity: 0.4;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Touch feedback. Applied via :active, so it costs nothing until pressed. */
+@keyframes press {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Play/pause glyph swap: the outgoing icon fades and drops slightly while the
+   incoming one rises, so the change reads as motion rather than a flicker. */
+@keyframes icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes icon-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.7);
+  }
 }
 
 @keyframes fade-up {
@@ -220,18 +308,115 @@
     @apply flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
   }
 
+  /* Tighter rail used by the denser Home rails. */
+  .rail-dense {
+    @apply -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]
+           [&::-webkit-scrollbar]:hidden;
+  }
+
   /* Skeleton loading state */
   .skeleton {
     @apply animate-pulse rounded-lg bg-white/[0.07];
   }
 
-  /* Bottom padding so the floating player never covers the last row of content */
+  /* ------------------------------------------------------------------
+     Premium surfaces
+     ------------------------------------------------------------------ */
+
+  /* Large rounded artwork card used across Home, Explore and Library.
+     `contain` keeps the hover lift from triggering layout work elsewhere. */
+  .art-card {
+    @apply relative w-full shrink-0 overflow-hidden rounded-card bg-base-800
+           ring-1 ring-white/10 transition-all duration-300
+           hover:-translate-y-1 hover:ring-white/25 hover:shadow-2xl hover:shadow-black/50;
+    contain: layout paint;
+  }
+
+  /* Play affordance that rises on hover/focus. Always reachable by keyboard
+     because it is a real button, not a hover-only decoration. */
+  .art-card-play {
+    @apply grid h-11 w-11 place-items-center rounded-full bg-brand-500 text-white
+           opacity-0 shadow-xl shadow-black/50 transition-all duration-200
+           focus-visible:opacity-100 group-hover:opacity-100;
+  }
+
+  /* The big rounded search field. */
+  .search-hero {
+    @apply w-full rounded-2xl border border-white/10 bg-white/[0.06] py-4 pl-12 pr-11
+           text-base text-white placeholder:text-muted/80 transition-all duration-200
+           focus:border-brand-400/60 focus:bg-white/[0.08] focus:outline-none
+           focus:ring-4 focus:ring-brand-500/20;
+  }
+
+  /* Glass surface for the mini-player and bottom nav. Sits above page content
+     with a soft top edge so the layering is legible. */
+  .glass-dock {
+    @apply border-white/10 bg-base-900/85 backdrop-blur-xl backdrop-saturate-150;
+  }
+
+  /* Full-bleed rounded container used by the fullscreen player. */
+  .player-sheet {
+    @apply fixed inset-0 z-50 flex flex-col overflow-hidden;
+  }
+
+  /* Every interactive control gets a comfortable touch target. 44px is the
+     platform guideline and matters most on the phone-sized layouts. */
+  .touch-target {
+    @apply relative grid h-11 w-11 shrink-0 place-items-center rounded-full
+           text-white/80 transition-all duration-200
+           hover:bg-white/10 hover:text-white
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400
+           focus-visible:ring-offset-2 focus-visible:ring-offset-base-950
+           active:scale-90 disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  .touch-target-lg {
+    @apply relative grid h-14 w-14 shrink-0 place-items-center rounded-full
+           text-white transition-all duration-200
+           hover:bg-white/10
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400
+           focus-visible:ring-offset-2 focus-visible:ring-offset-base-950
+           active:scale-90 disabled:pointer-events-none disabled:opacity-40;
+  }
+
+  /* Primary circular transport button. */
+  .play-orb {
+    @apply grid place-items-center rounded-full bg-white text-base-900 shadow-2xl
+           shadow-black/50 transition-transform duration-200
+           hover:scale-105 focus-visible:outline-none
+           focus-visible:ring-4 focus-visible:ring-brand-400/50 active:scale-95;
+  }
+
+  /* Range slider shared by progress and volume. */
+  .slider-track {
+    @apply relative h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/60;
+  }
+
+  .slider-thumb {
+    @apply pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2
+           rounded-full bg-white shadow-md transition-transform duration-150;
+  }
+
+  /* Bottom padding so the floating player never covers the last row of content.
+     Mobile stacks bottom-nav (60px) + mini-player dock (~62px) + breathing room. */
   .pb-player {
-    padding-bottom: 7rem;
+    padding-bottom: 10rem;
   }
   @media (min-width: 1024px) {
     .pb-player {
       padding-bottom: 6.5rem;
+    }
+  }
+
+  /* Extra bottom room while the official YouTube player is docked above the
+     mini-player, so the page underneath is never hidden behind it. */
+  .pb-youtube-dock {
+    padding-bottom: 30rem;
+  }
+  @media (min-width: 1024px) {
+    .pb-youtube-dock {
+      padding-bottom: 25rem;
     }
   }
 }

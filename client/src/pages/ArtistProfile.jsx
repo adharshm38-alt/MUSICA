@@ -37,7 +37,7 @@ export default function ArtistProfile() {
         icon="user"
         title="Artist not found"
         message={error || 'This profile may have been removed.'}
-        action={<Link to="/discover" className="btn-primary px-6 py-3">Discover artists</Link>}
+        action={<Link to="/explore" className="btn-primary px-6 py-3">Discover artists</Link>}
       />
     )
   }

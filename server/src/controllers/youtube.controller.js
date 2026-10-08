@@ -8,6 +8,7 @@
 
 import mongoose from 'mongoose'
 import * as youtube from '../services/youtube.service.js'
+const { SOURCE_STATUS } = youtube
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { sendSuccess, sendPaginated } from '../utils/response.js'
@@ -24,19 +25,34 @@ function isValidVideoId(id) {
 
 /**
  * GET /api/youtube/status
- * Lets the client show a clear "not configured" state instead of failing
- * silently with a generic network error.
+ *
+ * Reports one of: available | unavailable | quota_exceeded | error.
+ *
+ * The probe uses videos.list (1 unit) and never search.list (100 units), so
+ * asking for status cannot consume the budget it is reporting on. A quota
+ * failure we have already seen is answered from memory with no request at all.
  */
 export const status = asyncHandler(async (_req, res) => {
+  const info = await youtube.getQuotaInfo()
   const configured = youtube.isConfigured()
+
   sendSuccess(res, {
     configured,
+    // One machine-readable state for the client to branch on.
+    status: info.status || (configured ? SOURCE_STATUS.AVAILABLE : SOURCE_STATUS.UNAVAILABLE),
     // The client needs this to know whether to offer YouTube as a source.
     provider: 'youtube',
     playback: 'official-embedded-iframe-player',
-    message: configured
-      ? 'YouTube discovery is enabled.'
-      : 'YouTube discovery is not configured on this server.',
+    // Counters only - never any cached payload and never a credential.
+    cache: youtube.getSearchCacheStats(),
+    message:
+      info.status === SOURCE_STATUS.QUOTA_EXCEEDED
+        ? 'YouTube search quota is temporarily unavailable. Local music is still available.'
+        : info.status === SOURCE_STATUS.UNAVAILABLE
+          ? 'YouTube discovery is not configured on this server.'
+          : info.status === SOURCE_STATUS.ERROR
+            ? 'YouTube discovery could not be reached right now.'
+            : 'YouTube discovery is enabled.',
   })
 })
 

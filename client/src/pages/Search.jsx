@@ -5,80 +5,59 @@ import { toFriendlyError } from '../services/api'
 import { useToast } from '../context/ToastContext'
 import { usePlayer } from '../context/PlayerContext'
 import { useSocial } from '../hooks/useSocial'
+import useRecentSearches from '../hooks/useRecentSearches'
+import SongCover from '../components/music/SongCover'
 import SongCard from '../components/music/SongCard'
 import SongRow from '../components/music/SongRow'
-import SongCover from '../components/music/SongCover'
 import Avatar from '../components/ui/Avatar'
 import EmptyState from '../components/ui/EmptyState'
 import Icon from '../components/ui/Icon'
 import { RowSkeleton } from '../components/ui/Skeleton'
-import { compactNumber, cx, truncate } from '../utils/format'
-import YouTubeResults from '../components/music/YouTubeResults'
+import { cx, truncate, compactNumber } from '../utils/format'
 import UploadCta from '../components/music/UploadCta'
-import { youtubeService } from '../services/youtube'
+import MusicResults from '../components/music/MusicResults'
 
+/**
+ * Tabs. "Music" is the default and is the unified cross-source catalogue.
+ *
+ * The remaining tabs address the LOCAL index only, which is why they do not
+ * consult the catalogue endpoint at all - that keeps the expensive cross-source
+ * path on a single, deliberate tab.
+ */
 const TABS = [
+  { key: 'music', label: 'Music' },
   { key: 'all', label: 'All' },
   { key: 'songs', label: 'Songs' },
   { key: 'artists', label: 'Artists' },
   { key: 'albums', label: 'Albums' },
   { key: 'playlists', label: 'Playlists' },
-  { key: 'youtube', label: 'YouTube' },
 ]
 
 export default function Search() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') || ''
-  const type = params.get('type') || 'all'
+  const type = params.get('type') || 'music'
 
   const toast = useToast()
   const player = usePlayer()
   const { toggleLike } = useSocial()
+  const { items: recentSearches, remember, remove, clear } = useRecentSearches()
 
   const [input, setInput] = useState(q)
   const [results, setResults] = useState(null)
   const [loading, setLoading] = useState(false)
   const [suggestions, setSuggestions] = useState(null)
   const [suggestOpen, setSuggestOpen] = useState(false)
-  const [ytAvailable, setYtAvailable] = useState(null)
   const boxRef = useRef(null)
 
-  // Ask the server whether YouTube discovery is configured. The API key never
-  // reaches the browser; this is just a feature flag so we can hide the tab and
-  // explain why when the server has no key.
-  useEffect(() => {
-    let cancelled = false
-    youtubeService
-      .status()
-      .then((data) => {
-        if (!cancelled) setYtAvailable(Boolean(data?.configured))
-      })
-      .catch(() => {
-        if (!cancelled) setYtAvailable(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // Keep the box in sync when the URL changes (e.g. clicking a genre chip).
+  // Keep the box in sync when the URL changes (e.g. clicking a category chip).
   useEffect(() => setInput(q), [q])
 
-  // Keep the box in sync when the URL changes (e.g. clicking a genre chip).
-  useEffect(() => setInput(q), [q])
-
-  // Debounced search so we don't hit the API on every keystroke.
+  // Local-index search. Debounced, and skipped entirely on the Music tab
+  // because MusicResults owns that request.
   useEffect(() => {
     const query = q.trim()
-    if (!query) {
-      setResults(null)
-      setLoading(false)
-      return undefined
-    }
-
-    // The YouTube tab runs its own request (see YouTubeResults); the local
-    // index is not consulted, so we skip it entirely.
-    if (type === 'youtube') {
+    if (!query || type === 'music') {
       setResults(null)
       setLoading(false)
       return undefined
@@ -119,14 +98,46 @@ export default function Search() {
     return () => document.removeEventListener('mousedown', onClickAway)
   }, [suggestOpen])
 
+  /**
+   * Runs a search. Recording it as recent happens HERE, at the point the user
+   * commits to a query, rather than on every keystroke.
+   *
+   * A little context is snapshotted so the recent list can show artwork and an
+   * artist without needing another lookup later.
+   */
+  const runSearch = useCallback(
+    (query, context) => {
+      const trimmed = String(query || '').trim()
+      if (trimmed.length < 2) return
+      remember(trimmed, context || {})
+      const next = { q: trimmed }
+      if (type !== 'all') next.type = type
+      setParams(next)
+      setSuggestOpen(false)
+    },
+    [remember, setParams, type],
+  )
+
   const submit = useCallback(
     (event) => {
       event.preventDefault()
-      const next = { q: input.trim() }
-      if (type !== 'all') next.type = type
-      setParams(next)
+      const trimmed = input.trim()
+      if (!trimmed) return
+
+      // Snapshot the best available artwork/artist from the visible results so
+      // the recent entry is not a bare string.
+      const context = {}
+      const firstSong = songs[0] || artists[0]
+      if (firstSong) {
+        context.artist = firstSong.artistName || firstSong.displayName
+        context.artwork = firstSong.coverUrl || firstSong.avatarUrl || ''
+      }
+      runSearch(trimmed, context)
     },
-    [input, type, setParams],
+    // songs/artists are derived below; referencing them here keeps the callback
+    // reading the current render's results.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [input, runSearch],
   )
 
   const setType = (next) => {
@@ -144,21 +155,29 @@ export default function Search() {
   const albums = results?.albums ?? []
   const playlists = results?.playlists ?? []
   const total = songs.length + artists.length + albums.length + playlists.length
-
-  const counts = { all: total, songs: songs.length, artists: artists.length, albums: albums.length, playlists: playlists.length }
+  const counts = {
+    all: total,
+    songs: songs.length,
+    artists: artists.length,
+    albums: albums.length,
+    playlists: playlists.length,
+  }
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Search box */}
+      {/* Search hero */}
       <header className="animate-fade-up">
         <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">Search</h1>
 
-        <div ref={boxRef} className="relative mt-5" role="search">
+        <div ref={boxRef} className="relative mt-4" role="search">
           <form onSubmit={submit} className="relative">
             <label htmlFor="search-input" className="sr-only">
-              Search songs, artists, albums and playlists
+              Search artists, songs, lyrics and more
             </label>
-            <Icon name="search" className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
+            <Icon
+              name="search"
+              className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-muted"
+            />
             <input
               id="search-input"
               type="search"
@@ -168,12 +187,13 @@ export default function Search() {
                 setSuggestOpen(true)
               }}
               onFocus={() => setSuggestOpen(true)}
-              placeholder="Songs, artists, albums or playlists\u2026"
+              placeholder="Artists, Songs, Lyrics and More"
               autoComplete="off"
+              enterKeyHint="search"
               role="combobox"
               aria-expanded={suggestOpen}
               aria-controls="search-suggestions"
-              className="field py-3.5 pl-12 pr-12 text-base"
+              className="search-hero"
             />
             {input ? (
               <button
@@ -183,7 +203,7 @@ export default function Search() {
                   setSuggestions(null)
                   setParams({})
                 }}
-                className="btn-icon absolute right-2 top-1/2 -translate-y-1/2"
+                className="absolute top-1/2 right-3 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full text-muted transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
                 aria-label="Clear search"
               >
                 <Icon name="close" className="h-4 w-4" />
@@ -195,7 +215,7 @@ export default function Search() {
           (suggestions.songs?.length || suggestions.artists?.length || suggestions.playlists?.length) ? (
             <div
               id="search-suggestions"
-              className="glass-strong absolute inset-x-0 top-full z-40 mt-2 animate-scale-in overflow-hidden rounded-xl p-1.5 shadow-2xl"
+              className="glass-strong absolute inset-x-0 top-full z-40 mt-2 animate-scale-in overflow-hidden rounded-2xl p-1.5 shadow-2xl"
             >
               {suggestions.songs?.slice(0, 4).map((song) => (
                 <button
@@ -203,10 +223,9 @@ export default function Search() {
                   type="button"
                   onClick={() => {
                     setInput(song.title)
-                    setSuggestOpen(false)
-                    setParams({ q: song.title })
+                    runSearch(song.title, { artist: song.artistName, artwork: song.coverUrl })
                   }}
-                  className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/5"
+                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-white/5"
                 >
                   <SongCover song={song} size="xs" rounded="rounded-md" />
                   <span className="min-w-0 flex-1">
@@ -221,7 +240,7 @@ export default function Search() {
                   key={artist._id}
                   to={`/artist/${artist._id}`}
                   onClick={() => setSuggestOpen(false)}
-                  className="flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/5"
+                  className="flex w-full items-center gap-3 rounded-xl p-2 transition-colors hover:bg-white/5"
                 >
                   <Avatar src={artist.avatarUrl} name={artist.displayName} size="xs" />
                   <span className="min-w-0 flex-1">
@@ -237,17 +256,82 @@ export default function Search() {
                   key={playlist._id}
                   to={`/playlist/${playlist._id}`}
                   onClick={() => setSuggestOpen(false)}
-                  className="flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/5"
+                  className="flex w-full items-center gap-3 rounded-xl p-2 transition-colors hover:bg-white/5"
                 >
                   <SongCover song={{ title: playlist.name, coverUrl: playlist.coverUrl }} size="xs" rounded="rounded-md" />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium text-white">{playlist.name}</span>
-                  <span className="text-[10px] font-semibold text-muted uppercase">Playlist</span>
                 </Link>
               ))}
             </div>
           ) : null}
         </div>
       </header>
+
+      {/* Recent searches */}
+      {!q && recentSearches.length ? (
+        <section className="animate-fade-up" aria-labelledby="recent-searches">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 id="recent-searches" className="text-sm font-bold text-white">
+              Recent searches
+            </h2>
+            <button
+              type="button"
+              onClick={clear}
+              className="rounded-lg px-2 py-1 text-xs font-semibold text-muted transition-colors hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+            >
+              Clear
+            </button>
+          </div>
+
+          <ul className="space-y-1">
+            {recentSearches.map((item) => (
+              <li key={item.query} className="group flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInput(item.query)
+                    runSearch(item.query)
+                  }}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+                >
+                  {item.artwork ? (
+                    <img
+                      src={item.artwork}
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white/5 text-muted ring-1 ring-white/10">
+                      <Icon name="clock" className="h-4 w-4" />
+                    </span>
+                  )}
+
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-white">{item.query}</span>
+                    {item.artist ? (
+                      <span className="block truncate text-xs text-muted">{item.artist}</span>
+                    ) : null}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => remove(item.query)}
+                  className="touch-target opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                  aria-label={`Remove ${item.query} from recent searches`}
+                >
+                  <Icon name="close" className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Tabs */}
       {q ? (
@@ -276,34 +360,14 @@ export default function Search() {
         </div>
       ) : null}
 
-      {/* Not-configured notice. The API key lives server-side; when it is absent
-          we say so plainly instead of failing on a generic network error. */}
-      {q && type === 'youtube' && ytAvailable === false ? (
-        <div
-          role="status"
-          className="flex items-start gap-3 rounded-panel border border-white/10 bg-white/[0.03] p-4"
-        >
-          <Icon name="info" className="mt-0.5 h-5 w-5 shrink-0 text-brand-400" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-white">YouTube discovery is not configured</p>
-            <p className="mt-1 text-xs text-muted">
-              This server has no <code className="text-soft">YOUTUBE_API_KEY</code> set, so YouTube
-              search and playback are unavailable. Add the key to{' '}
-              <code className="text-soft">server/.env</code> and restart the API. The key stays
-              server-side and is never sent to the browser.
-            </p>
-          </div>
-        </div>
-      ) : null}
-
       {/* Results */}
-      {q && type === 'youtube' ? (
-        ytAvailable === false ? null : <YouTubeResults query={q} />
+      {q && type === 'music' ? (
+        <MusicResults query={q} onSearched={(context) => remember(q, context)} />
       ) : !q ? (
         <EmptyState
           icon="search"
           title="What do you want to listen to?"
-          message="Search for a song, an artist, an album or a playlist, or switch to the YouTube tab to discover music videos."
+          message="Search for a song, an artist, a collection or a playlist across every music source MUSICA can reach."
         />
       ) : loading && !results ? (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -354,7 +418,7 @@ export default function Search() {
                   <Link
                     key={artist._id}
                     to={`/artist/${artist._id}`}
-                    className="card-hover flex w-[172px] shrink-0 flex-col items-center gap-2 p-4 text-center sm:w-[200px]"
+                    className="card-hover flex w-[150px] shrink-0 flex-col items-center gap-2 p-4 text-center sm:w-[176px]"
                   >
                     <Avatar src={artist.avatarUrl} name={artist.displayName} size="lg" />
                     <p className="mt-1 w-full truncate text-sm font-semibold text-white">{artist.displayName}</p>
@@ -369,7 +433,7 @@ export default function Search() {
             <SearchBlock title="Albums" icon="album">
               <div className="rail">
                 {albums.map((album) => (
-                  <div key={album._id} className="card-hover w-[172px] shrink-0 p-3 sm:w-[200px]">
+                  <div key={album._id} className="card-hover w-[150px] shrink-0 p-3 sm:w-[176px]">
                     <SongCover song={{ title: album.name, coverUrl: album.coverUrl }} size="full" className="aspect-square w-full" />
                     <p className="mt-3 truncate text-sm font-semibold text-white" {...truncate(album.name, 1)}>
                       {album.name}
@@ -387,14 +451,14 @@ export default function Search() {
             <SearchBlock title="Playlists" icon="playlist">
               <div className="rail">
                 {playlists.map((playlist) => (
-                  <Link key={playlist._id} to={`/playlist/${playlist._id}`} className="card-hover w-[172px] shrink-0 p-3 sm:w-[200px]">
+                  <Link key={playlist._id} to={`/playlist/${playlist._id}`} className="card-hover w-[150px] shrink-0 p-3 sm:w-[176px]">
                     <SongCover
                       song={{ title: playlist.name, coverUrl: playlist.coverUrl || playlist.songs?.[0]?.coverUrl }}
                       size="full"
                       className="aspect-square w-full"
                     />
                     <p className="mt-3 truncate text-sm font-semibold text-white">{playlist.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted">
+                    <p className="text-xs text-muted">
                       {playlist.songs?.length ?? 0} song{(playlist.songs?.length ?? 0) === 1 ? '' : 's'}
                     </p>
                   </Link>

@@ -1,9 +1,9 @@
 /** Single source of truth for navigation items (sidebar + mobile bar). */
 export const NAV_ITEMS = [
   { to: '/', label: 'Home', icon: 'home', end: true },
-  { to: '/discover', label: 'Discover', icon: 'compass' },
+  { to: '/explore', label: 'Explore', icon: 'compass' },
+  { to: '/library', label: 'Library', icon: 'library' },
   { to: '/search', label: 'Search', icon: 'search' },
-  { to: '/library', label: 'Library', icon: 'heart' },
   { to: '/playlists', label: 'Playlists', icon: 'playlist' },
   // requiresUploads: hidden when the server reports uploads are disabled, which
   // is the case on a host with no persistent disk for uploaded audio.
@@ -13,5 +13,9 @@ export const NAV_ITEMS = [
   { to: '/settings', label: 'Settings', icon: 'settings', requiresAuth: true },
 ]
 
-/** Items shown in the mobile bottom bar (keeps it to 5 for thumb reach). */
-export const MOBILE_NAV = ['/', '/discover', '/search', '/library', '/playlists']
+/**
+ * The four destinations that get a permanent slot in the mobile bottom bar.
+ * Everything else moves behind the profile button, so the bar stays comfortable
+ * one-handed: four targets plus overflow instead of six cramped ones.
+ */
+export const MOBILE_NAV = ['/', '/explore', '/library', '/search']

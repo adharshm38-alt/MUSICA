@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { usersService } from '../services'
 import api, { toFriendlyError } from '../services/api'
-import { getApiBaseUrl, setApiBaseUrl } from '../config/runtime'
+import { getApiBaseUrl, setApiBaseUrl, DEFAULT_API_URL } from '../config/runtime'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import Icon from '../components/ui/Icon'
@@ -187,17 +187,19 @@ export default function Settings() {
         </button>
       </form>
 
-      {/* Server address - required on Android */}
+      {/* Server address - override for self-hosted or testing */}
       <section className="card space-y-3 p-6 animate-fade-up">
         <h2 className="flex items-center gap-2 text-sm font-bold text-white">
           <Icon name="server" className="h-4 w-4 text-brand-400" />
           Music server
         </h2>
         <p className="text-xs leading-relaxed text-muted">
-          On Android the app needs the address of your MUSICA server. Use your computer&apos;s
-          LAN address &mdash; not <code className="text-soft">localhost</code>, which on a phone
-          means the phone itself &mdash; for example{' '}
-          <code className="text-soft">http://192.168.1.5:5000/api</code>.
+          MUSICA already points at the public server, so most people never need to
+          change this. Only override it if you are running your own backend &mdash; and
+          if you do, use its <code className="text-soft">https://</code> address. On a
+          phone, <code className="text-soft">localhost</code> means the phone itself, and
+          a <code className="text-soft">192.168.x.x</code> address only works on one
+          home network.
         </p>
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -206,7 +208,7 @@ export default function Settings() {
             className="field flex-1"
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
-            placeholder="http://192.168.1.5:5000/api"
+            placeholder={DEFAULT_API_URL}
             inputMode="url"
             autoCapitalize="off"
             autoCorrect="off"

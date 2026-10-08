@@ -36,20 +36,18 @@ const youTubeVideoSchema = new mongoose.Schema(
     channelId: { type: String, default: '', index: true },
     channelTitle: { type: String, default: '' },
 
+    // Thumbnail sizes, keyed exactly as the Data API names them
+    // (default / medium / high / standard / maxres).
+    //
+    // Stored as Mixed rather than a nested schema or a Map. Both of those break
+    // here: the API key `default` collides with Mongoose's `default` schema
+    // option, and a Map with `of:` silently corrupted reads (documents came back
+    // as { default, of }, losing medium/high/maxres - which is why every track
+    // rendered without artwork). Mixed keeps the shape exactly as the API
+    // returns it and round-trips cleanly through the service's bulkWrite $set.
     thumbnails: {
-      default: {},
-      // Only the small set of thumbnails the Data API documents.
-      of: {
-        default: {},
-        type: new mongoose.Schema(
-          {
-            url: { type: String, default: '' },
-            width: { type: Number, default: 0 },
-            height: { type: Number, default: 0 },
-          },
-          { _id: false },
-        ),
-      },
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({}),
     },
 
     durationSeconds: { type: Number, default: 0 },

@@ -159,12 +159,22 @@ export function PlayerProvider({ children }) {
   const activeEngine = engineFor(currentSong)
   const isYouTube = activeEngine === ENGINE_YOUTUBE
 
-  // YouTube auto-opens its stage: the official player must be visible to play,
-  // so we cannot start playback silently inside the compact bottom bar.
-  const [ytStageOpen, setYtStageOpen] = useState(false)
-  useEffect(() => {
-    if (isYouTube) setYtStageOpen(true)
-  }, [isYouTube, currentSong?.youtubeVideoId])
+  // The official YouTube player must be visible while it plays, but it is NOT a
+  // modal: it docks above the mini-player and never covers the page. That used
+  // to be an auto-opening full-screen overlay, which buried the Search results
+  // the moment a song started.
+  //
+  // The dock therefore stays mounted for as long as a YouTube track is loaded,
+  // driven purely by `isYouTube`. There is no "open" flag to get out of sync
+  // with the player, and no dismissal that would tear the player out of the DOM
+  // and stop audio.
+  //
+  // `ytStageOpen` is retained only so older call sites keep compiling; the
+  // open/close helpers are now no-ops that never unmount the player.
+  const ytStageOpen = isYouTube
+  const setYtStageOpen = useCallback(() => {
+    // Intentionally ignored: the dock's visibility is owned by `isYouTube`.
+  }, [])
 
   // ---- Keep the audio element in sync with the current song + play state ----
   //

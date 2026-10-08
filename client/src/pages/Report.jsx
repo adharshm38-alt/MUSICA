@@ -96,7 +96,7 @@ export default function Report() {
 
       <p className="pt-2 text-center text-xs text-muted/70">
         You can also report any artist from their{' '}
-        <Link to="/discover" className="text-brand-400 hover:underline">profile page</Link>.
+        <Link to="/explore" className="text-brand-400 hover:underline">profile page</Link>.
       </p>
     </div>
   )

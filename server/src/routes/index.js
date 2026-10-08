@@ -9,6 +9,7 @@ import historyRoutes from './history.routes.js'
 import reportRoutes from './report.routes.js'
 import adminRoutes from './admin.routes.js'
 import youtubeRoutes from './youtube.routes.js'
+import catalogueRoutes from './catalogue.routes.js'
 
 const router = Router()
 
@@ -47,5 +48,7 @@ router.use('/reports', reportRoutes)
 router.use('/admin', adminRoutes)
 // YouTube discovery (metadata only; playback uses YouTube's official embed).
 router.use('/youtube', youtubeRoutes)
+// Source-aware catalogue: unified search + Home rails across every source.
+router.use('/catalogue', catalogueRoutes)
 
 export default router

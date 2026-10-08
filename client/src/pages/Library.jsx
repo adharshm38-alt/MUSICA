@@ -15,11 +15,19 @@ import { RowSkeleton, CardSkeletonRail } from '../components/ui/Skeleton'
 import { cx } from '../utils/format'
 import UploadCta from '../components/music/UploadCta'
 
+/**
+ * Library sections.
+ *
+ * Every one of these is served from our own database - none of them touches the
+ * YouTube search quota, which is why the Library can be as rich as it is without
+ * spending the daily budget.
+ */
 const TABS = [
   { key: 'liked', label: 'Liked Songs', icon: 'heart' },
   { key: 'recent', label: 'Recently Played', icon: 'clock' },
   { key: 'playlists', label: 'Playlists', icon: 'playlist' },
-  { key: 'uploads', label: 'My Uploads', icon: 'upload' },
+  { key: 'uploads', label: 'Local Music', icon: 'upload' },
+  { key: 'artists', label: 'Artists', icon: 'users' },
 ]
 
 export default function Library() {
@@ -33,13 +41,16 @@ export default function Library() {
     if (tab === 'liked') return songsService.liked()
     if (tab === 'recent') return historyService.list(50)
     if (tab === 'playlists') return playlistsService.list({ scope: 'mine' })
+    // "Artists" reuses the local discover payload rather than adding an endpoint.
+    if (tab === 'artists') return songsService.discover()
     return songsService.mine()
   }
 
   const { data, loading, error, reload } = useFetch(fetcher, [tab])
 
-  const songs = tab === 'playlists' ? [] : data?.songs ?? []
+  const songs = tab === 'playlists' || tab === 'artists' ? [] : data?.songs ?? []
   const playlists = data?.items ?? []
+  const followedArtists = data?.popularArtists ?? []
 
   const playAll = () => {
     if (songs.length) player.playQueue(songs, 0)
@@ -72,7 +83,7 @@ export default function Library() {
             aria-selected={tab === item.key}
             onClick={() => setTab(item.key)}
             className={cx(
-              'relative flex shrink-0 items-center gap-2 px-4 pb-3 pt-1 text-sm font-semibold transition-colors',
+              'relative flex min-h-11 shrink-0 items-center gap-2 px-4 pb-3 pt-1 text-sm font-semibold transition-colors',
               tab === item.key ? 'text-white' : 'text-muted hover:text-soft',
             )}
           >
@@ -88,7 +99,32 @@ export default function Library() {
       {error ? (
         <EmptyState icon="wifiOff" title="Could not load your library" message={error} action={<button type="button" onClick={reload} className="btn-primary px-5 py-2.5">Try again</button>} />
       ) : loading ? (
-        tab === 'playlists' ? <CardSkeletonRail /> : <RowSkeleton count={6} />
+        tab === 'playlists' || tab === 'artists' ? <CardSkeletonRail /> : <RowSkeleton count={6} />
+      ) : tab === 'artists' ? (
+        followedArtists.length ? (
+          <div className="rail">
+            {followedArtists.map((artist) => (
+              <SongCard
+                key={artist._id}
+                variant="artist"
+                to={`/artist/${artist._id}`}
+                song={{ ...artist, title: artist.displayName }}
+              />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon="users"
+            title="No artists yet"
+            message="Artists you follow will collect here."
+            action={
+              <Link to="/following" className="btn-primary px-6 py-3">
+                <Icon name="users" className="h-4 w-4" />
+                Find artists
+              </Link>
+            }
+          />
+        )
       ) : tab === 'playlists' ? (
         playlists.length ? (
           <div className="rail">
@@ -159,7 +195,7 @@ function EmptyStateForTab({ tab, user }) {
         title="No liked songs yet"
         message="Tap the heart on any song to keep it here for quick access."
         action={
-          <Link to="/discover" className="btn-primary px-6 py-3">
+          <Link to="/explore" className="btn-primary px-6 py-3">
             <Icon name="compass" className="h-4 w-4" />
             Find music
           </Link>
@@ -173,6 +209,21 @@ function EmptyStateForTab({ tab, user }) {
         icon="clock"
         title="Nothing played yet"
         message="Songs you listen to show up here automatically."
+      />
+    )
+  }
+  if (tab === 'artists') {
+    return (
+      <EmptyState
+        icon="users"
+        title="No artists yet"
+        message="Follow the artists you like and they will collect here."
+        action={
+          <Link to="/following" className="btn-primary px-6 py-3">
+            <Icon name="users" className="h-4 w-4" />
+            Find artists
+          </Link>
+        }
       />
     )
   }

@@ -88,7 +88,7 @@ export default function Following() {
               : 'Share your profile and your music so people can find you.'
           }
           action={
-            <Link to="/discover" className="btn-primary px-6 py-3">
+            <Link to="/explore" className="btn-primary px-6 py-3">
               <Icon name="compass" className="h-4 w-4" />
               Discover artists
             </Link>

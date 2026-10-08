@@ -1,9 +1,14 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import { cx } from '../../utils/format'
 
 /**
  * Accessible seek bar. Uses a real <input type="range"> so it is fully
  * keyboard operable, then paints the progress on top with a gradient.
+ *
+ * Two visual variants:
+ *   default  - full track with a thumb on hover/focus (player, desktop bar)
+ *   hairline - 2px, no thumb, for the mini-player dock where there is no room
+ *              for an interactive affordance
  */
 export default function ProgressBar({
   value = 0,
@@ -12,24 +17,35 @@ export default function ProgressBar({
   className = '',
   label = 'Seek',
   disabled = false,
+  variant = 'default',
 }) {
-  const trackRef = useRef(null)
   const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0
+  const hairline = variant === 'hairline'
 
   const handleChange = useCallback(
     (event) => onChange?.(Number(event.target.value)),
     [onChange],
   )
 
+  if (hairline) {
+    // Position only: the dock strip is a progress indicator, not a control, so
+    // it is hidden from assistive tech to avoid announcing a second seek widget.
+    return (
+      <div className={cx('h-full w-full overflow-hidden', className)} aria-hidden="true">
+        <div
+          className="h-full bg-gradient-to-r from-brand-400 to-accent-pink transition-[width] duration-150"
+          style={{ width: `${percent}%` }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className={cx('group/bar relative flex w-full items-center', className)}>
       {/* Visual track */}
-      <div
-        ref={trackRef}
-        className="pointer-events-none absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-white/10"
-      >
+      <div className="pointer-events-none absolute inset-x-0 h-1.5 overflow-hidden rounded-full bg-white/15">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-brand-500 via-accent-pink to-accent-blue transition-[width] duration-150"
+          className="h-full rounded-full bg-gradient-to-r from-brand-400 via-accent-pink to-accent-blue transition-[width] duration-150"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -45,10 +61,10 @@ export default function ProgressBar({
         disabled={disabled || max <= 0}
         aria-label={label}
         aria-valuetext={`${Math.floor(value)} of ${Math.floor(max)} seconds`}
-        className="relative z-10 h-4 w-full cursor-pointer appearance-none bg-transparent
+        className="relative z-10 h-5 w-full cursor-pointer appearance-none bg-transparent
                    [&::-moz-range-thumb]:h-0 [&::-moz-range-thumb]:w-0
                    [&::-webkit-slider-runnable-track]:h-1.5 [&::-webkit-slider-runnable-track]:bg-transparent
-                   [&::-webkit-slider-thumb]:mt-[-5px] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+                   [&::-webkit-slider-thumb]:mt-[-6px] [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full
                    [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md
                    [&::-webkit-slider-thumb]:opacity-0 [&::-webkit-slider-thumb]:transition-opacity

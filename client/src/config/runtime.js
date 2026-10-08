@@ -6,23 +6,24 @@
  * module lets the server URL be changed at runtime instead:
  *
  *   1. A value saved in localStorage (set on the device via the in-app
- *      Server settings screen, or by editing this file before a build).
+ *      Server settings screen).
  *   2. The build-time VITE_API_URL.
- *   3. A sensible default.
+ *   3. The public production backend.
  *
- * The default below is deliberately a LAN placeholder. On a real device
- * "localhost" points at the phone itself, so the app could never reach a
- * backend running on your computer. Replace it with your machine's LAN IP,
- * or set it from the app's Server settings screen.
+ * IMPORTANT: the fallback below is the REAL production backend, not a LAN or
+ * localhost address. On a phone, "localhost" is the phone itself and a
+ * 192.168.x.x address only resolves on one home network, so either would leave
+ * a shipped APK unable to reach MUSICA anywhere else. Building with no
+ * VITE_API_URL must still produce a working app.
  */
 
 const STORAGE_KEY = 'musica.apiUrl'
 
 /**
- * Placeholder LAN address. Override at runtime from Settings, or set
- * VITE_API_URL before building.
+ * Public production backend on Render. A signed-in listener on any network
+ * reaches the same API the web front end uses.
  */
-const DEFAULT_API_URL = 'http://192.168.1.100:5000/api'
+const DEFAULT_API_URL = 'https://adharshm38-musica-api.onrender.com/api'
 
 /** Strips a trailing slash so `${origin}` concatenation stays predictable. */
 function clean(url) {

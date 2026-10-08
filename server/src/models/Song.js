@@ -145,11 +145,18 @@ songSchema.index({ isActive: 1, likeCount: -1 })
 songSchema.index({ genre: 1, createdAt: -1 })
 
 // A YouTube video can only be stored once.
+//
+// The partial filter restricts the index to YouTube-sourced rows only. Note it
+// deliberately does NOT try to exclude empty ids inside the filter expression:
+// MongoDB only permits $eq (among a few others) in a partialFilterExpression,
+// and rejects $ne/$not outright. Since `source: 'youtube'` already implies a
+// real id - the schema's pre-validate hook requires an 11-character one - the
+// extra condition is unnecessary and would make the index uncreatable.
 songSchema.index(
   { youtubeVideoId: 1 },
   {
     unique: true,
-    partialFilterExpression: { source: 'youtube', youtubeVideoId: { $type: 'string', $ne: '' } },
+    partialFilterExpression: { source: 'youtube' },
     name: 'unique_youtube_video',
   },
 )

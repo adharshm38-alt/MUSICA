@@ -30,14 +30,43 @@ api.interceptors.request.use((config) => {
 })
 
 /**
+ * True when a request failed because the production backend was unreachable,
+ * rather than because the app did something wrong.
+ *
+ * Render's free tier idles a free web service to sleep and then has to boot it
+ * again on the next request, which typically takes tens of seconds. To a user
+ * that looks exactly like "the app is broken", so it is worth distinguishing:
+ * the honest message is that the server is waking up, and a retry will work.
+ */
+export function isServerWakingUp(error) {
+  if (!error) return false
+  // No response at all: DNS failure, connection refused, TLS problem, offline.
+  if (error.response) return false
+  const code = error.code || ''
+  if (code === 'ECONNABORTED') return true
+  return [
+    'ERR_NETWORK',
+    'ECONNREFUSED',
+    'ECONNRESET',
+    'ENOTFOUND',
+    'EAI_AGAIN',
+    'ETIMEDOUT',
+  ].includes(code)
+}
+
+/**
  * Turn any axios error into a plain Error with a message that is safe to
  * show directly in a toast.
  */
 export function toFriendlyError(error) {
   if (error?.response?.data?.message) return error.response.data.message
-  if (error?.code === 'ECONNABORTED') return 'The request took too long. Please try again.'
+  if (error?.code === 'ECONNABORTED') {
+    return 'The request took too long. Please try again.'
+  }
   if (!error?.response) {
-    return 'Cannot reach the MUSICA server. Is the backend running on port 5000?'
+    // Do not mention a local port: in production there is no local server, and
+    // telling a phone user to check "port 5000" would be actively misleading.
+    return 'MUSICA server is waking up. Please try again in a moment.'
   }
   return 'Something went wrong. Please try again.'
 }
