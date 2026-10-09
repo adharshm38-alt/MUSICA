@@ -9,6 +9,98 @@ import config from './config/env.js'
 import routes from './routes/index.js'
 import { notFound, errorHandler } from './middleware/error.js'
 
+/**
+ * Origins belonging to the packaged native app shell.
+ *
+ * Capacitor serves the Android WebView from a LOCAL scheme rather than from a
+ * real website, so the app's origin is not the web frontend URL:
+ *
+ *   androidScheme "https"  -> https://localhost      (current)
+ *   androidScheme "http"   -> http://localhost       (older configs)
+ *   capacitor://localhost  -> iOS
+ *
+ * These are not attacker-controlled addresses. They mean "a copy of our own app
+ * running on the device", and they are required for the app to work at all.
+ *
+ * They are kept separate from CLIENT_URL on purpose: CLIENT_URL is the
+ * deployer's list of real websites and should stay authoritative, while these
+ * are a fixed property of how Capacitor packages an app.
+ */
+const NATIVE_APP_ORIGINS = [
+  'https://localhost',
+  'http://localhost',
+  'capacitor://localhost',
+]
+
+/**
+ * Decides whether a given Origin may call this API.
+ *
+ * Supports both calling conventions, which is essential here:
+ *
+ *   1. `resolveAllowedOrigin(origin)` -> string | false   (direct, testable)
+ *   2. `resolveAllowedOrigin(origin, callback)`           (the `cors` package)
+ *
+ * The second form is the trap: `cors` invokes the function with a NODE-STYLE
+ * callback as its second argument and waits for that callback to run. A resolver
+ * that ignores the callback and returns a value leaves every request hanging
+ * forever, because the middleware never continues to the route.
+ *
+ * Returning a string echoes it back as `Access-Control-Allow-Origin`, which is
+ * required because `credentials: true` forbids the `*` wildcard. Returning
+ * `false` omits the header entirely, so the browser blocks the response - the
+ * desired outcome for an unknown origin.
+ *
+ * The echoed value is the REQUEST's own origin, not the canonical allowlist
+ * entry, because a browser only accepts the header when it matches the Origin it
+ * sent byte for byte.
+ *
+ * Only an exact, case-insensitive match is accepted. There is no prefix, suffix
+ * or wildcard matching, so "https://localhost.attacker.example" can never satisfy
+ * the check. Reflecting arbitrary origins would let any hostile page read this
+ * API on a user's behalf; this list is what prevents that.
+ */
+export function resolveAllowedOrigin(requestOrigin, allowedOrCallback) {
+  const isCallback = typeof allowedOrCallback === 'function'
+
+  // Three ways to be called, and each has to behave sensibly:
+  //   origin                        -> use the configured CLIENT_URL
+  //   origin, callback              -> the `cors` package; use CLIENT_URL
+  //   origin, "a,b"                 -> an explicit list, for tests
+  // Falling back to CLIENT_URL whenever no list was supplied matters: defaulting
+  // to undefined would silently drop every configured web origin and leave only
+  // the native ones.
+  const allowed = isCallback || allowedOrCallback === undefined
+    ? config.clientUrl
+    : allowedOrCallback
+
+  const permitted = isPermittedOrigin(requestOrigin, allowed)
+
+  if (isCallback) {
+    // The `cors` contract is (error, allow). Passing the explicit origin is
+    // clearer than passing `true`, which makes cors reflect the request origin.
+    // `false` yields no ACAO header at all, so the browser blocks the response.
+    allowedOrCallback(null, permitted ? requestOrigin : false)
+    return undefined
+  }
+
+  return permitted ? requestOrigin : false
+}
+
+/** True when the origin exactly matches an allowed web or native-app origin. */
+function isPermittedOrigin(requestOrigin, allowed) {
+  if (!requestOrigin || typeof requestOrigin !== 'string') return false
+
+  const configured = String(allowed || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  const allowedOrigins = [...configured, ...NATIVE_APP_ORIGINS]
+  const normalised = requestOrigin.toLowerCase()
+
+  return allowedOrigins.some((origin) => origin.toLowerCase() === normalised)
+}
+
 export function createApp() {
   const app = express()
 
@@ -50,10 +142,10 @@ export function createApp() {
     }),
   )
 
-  // Only the frontend origin may call this API.
+  // Only known origins may call this API.
   app.use(
     cors({
-      origin: config.clientUrl.split(',').map((origin) => origin.trim()),
+      origin: resolveAllowedOrigin,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     }),

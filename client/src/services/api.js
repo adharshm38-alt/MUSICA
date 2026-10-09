@@ -30,17 +30,23 @@ api.interceptors.request.use((config) => {
 })
 
 /**
- * True when a request failed because the production backend was unreachable,
- * rather than because the app did something wrong.
+ * True when a request failed without ever getting an HTTP response.
  *
- * Render's free tier idles a free web service to sleep and then has to boot it
- * again on the next request, which typically takes tens of seconds. To a user
- * that looks exactly like "the app is broken", so it is worth distinguishing:
- * the honest message is that the server is waking up, and a retry will work.
+ * This covers several genuinely different situations that JavaScript cannot
+ * always tell apart, because a blocked cross-origin request and a genuinely
+ * unreachable host both surface as "no response":
+ *
+ *   - the production backend is asleep and still booting (Render cold start)
+ *   - the API rejected this client's Origin (CORS), so the browser withheld the
+ *     response from the app
+ *   - there is no network at all
+ *
+ * It is deliberately NOT named isServerAsleep: asserting a cause we cannot
+ * observe is how a healthy server ended up being blamed for a CORS rejection.
  */
-export function isServerWakingUp(error) {
+export function isUnreachable(error) {
   if (!error) return false
-  // No response at all: DNS failure, connection refused, TLS problem, offline.
+  // A response arrived, so the server was reachable and did answer.
   if (error.response) return false
   const code = error.code || ''
   if (code === 'ECONNABORTED') return true
@@ -64,9 +70,17 @@ export function toFriendlyError(error) {
     return 'The request took too long. Please try again.'
   }
   if (!error?.response) {
+    // No response at all. Two plausible causes, so name both rather than
+    // guessing at one: the device may be offline, or the server may still be
+    // starting. `navigator` is read defensively so that this can never itself
+    // throw and hide the underlying failure.
+    //
     // Do not mention a local port: in production there is no local server, and
     // telling a phone user to check "port 5000" would be actively misleading.
-    return 'MUSICA server is waking up. Please try again in a moment.'
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false
+    return offline
+      ? 'You appear to be offline. Check your connection and try again.'
+      : 'Could not reach the MUSICA server. It may still be starting up, so please try again.'
   }
   return 'Something went wrong. Please try again.'
 }

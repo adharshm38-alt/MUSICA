@@ -299,7 +299,7 @@ function MusicResultRow({ track, onPlay }) {
           </span>
         )}
         <span className="absolute inset-0 grid place-items-center bg-black/50 opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100 max-md:opacity-100">
-          <Icon name={isPlayingHere ? 'pause' : 'play'} className="h-4 w-4" filled className="text-white" />
+          <Icon name={isPlayingHere ? 'pause' : 'play'} className="h-4 w-4 text-white" filled />
         </span>
       </button>
 
