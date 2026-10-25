@@ -10,6 +10,7 @@
  */
 
 import * as registry from '../services/sources/registry.js'
+import * as health from '../services/sources/health.js'
 import asyncHandler from '../utils/asyncHandler.js'
 import ApiError from '../utils/ApiError.js'
 import { sendSuccess } from '../utils/response.js'
@@ -30,6 +31,20 @@ async function loadModels() {
  */
 export const sources = asyncHandler(async (_req, res) => {
   sendSuccess(res, { sources: registry.describeSources() })
+})
+
+/**
+ * GET /api/catalogue/sources/:id/health
+ *
+ * A REAL check of one provider: it contacts the provider and reports what
+ * actually happened. Not a stored flag, and not a hard-coded "available" -
+ * a key can be revoked and an upstream can be down, and the listener needs to
+ * know which it is before deciding what to do.
+ */
+export const sourceHealth = asyncHandler(async (req, res) => {
+  const models = await loadModels()
+  const result = await health.probeSource(req.params.id, { models })
+  sendSuccess(res, result)
 })
 
 /**

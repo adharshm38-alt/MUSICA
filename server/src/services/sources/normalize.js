@@ -27,6 +27,9 @@ export const SOURCE_YOUTUBE = 'youtube'
 export const PLAYBACK_LOCAL_AUDIO = 'local-audio'
 export const PLAYBACK_YOUTUBE_EMBED = 'youtube-embed'
 
+// A full-length Jamendo track: the whole recording, streamed from Jamendo.
+export const PLAYBACK_JAMENDO_STREAM = 'jamendo-stream'
+
 /**
  * Normalizes a first-party / user-owned Song document into a Track.
  *

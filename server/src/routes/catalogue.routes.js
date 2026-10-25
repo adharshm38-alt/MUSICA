@@ -19,6 +19,26 @@ const router = Router()
 router.get('/sources', catalogue.sources)
 
 /**
+ * A REAL health check for one provider.
+ *
+ * Registered after `/sources` so the literal path is matched first. It makes
+ * a genuine request to the provider, so it is rate limited like a search:
+ * the YouTube probe costs one unit, but a listener mashing "Test" would
+ * still add up.
+ */
+const sourceHealthLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many checks. Please wait a moment and try again.',
+  },
+})
+router.get('/sources/:id/health', sourceHealthLimiter, catalogue.sourceHealth)
+
+/**
  * Home rails. Requires optional auth because "Recents" is viewer-specific and
  * omitted for anonymous visitors.
  */
