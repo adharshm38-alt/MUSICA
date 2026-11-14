@@ -44,7 +44,7 @@ This document lists solutions for common build, runtime, playback, and network i
 
 ### Problem: Custom wallpaper only displays in gallery thumbnails, not screen background
 - **Cause**: Selected wallpaper ID was not applied to the root container.
-  - **Solution**: Fixed in version 1.1.3 via `AppBackgroundWallpaper` integration. Open **Settings → Extra Changes → Backgrounds**, select your wallpaper, and tap **Apply**. Pure black is restored anytime by picking **Default Black**.
+  - **Solution**: Handled in MUSICA 1.0.0 via `AppBackgroundWallpaper` integration. Open **Settings → Extra Changes → Backgrounds**, select your wallpaper, and tap **Apply**. Pure black is restored anytime by picking **Default Black**.
 
 ### Problem: App launcher icon does not change on home screen
 - **Cause**: Some third-party Android launchers (e.g., Nova Launcher, Samsung One UI) cache app icons aggressively.

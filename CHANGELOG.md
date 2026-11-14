@@ -7,16 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.1.3] - 2026-11-14
+## [1.0.0] - 2026-11-14
 
 ### Added
-- **Complete MUSICA Product Identity**: Established independent branding, official cassette pixel-art logo, high-resolution dark banners, and updated repository metadata.
-- **Root Screen Background Wallpapers**: Custom wallpapers (Mount Fuji, Anime Night, Cyberpunk Neon, Minimal Wave, and custom user uploads) now apply across all major app screens (Home, Explore, Library, Settings, Extra Changes, Backgrounds) behind translucent UI surfaces. Default Black restores pure OLED black everywhere.
-- **Dynamic App Logos**: Added separate App Logos customization screen under Settings → Extra Changes with 6 selectable icons (Default, Black, Lavender, Mint Green, Sky Blue, Pink) utilizing Android `activity-alias` components for real home screen launcher and app drawer icon switching.
-- **1-Minute Video Discovery Previews**: Upgraded Home video discovery previews from 12s to full 1-minute clips (`60_000_000L`) backed by dedicated disk LRU cache.
-- **Preview Sound ON/OFF Toggle**: Added dedicated top-left sound icon control to the active video discovery card for optional audible preview listening without breaking background music state.
-- **Mini Player Settings Toggle**: Added setting in Settings → Appearance to enable or disable the floating/docked mini player.
-- **Complete Project Documentation Suite**: Added `ARCHITECTURE.md`, `API_DOCUMENTATION.md`, `DATABASE.md`, `INSTALLATION.md`, `BUILD_GUIDE.md`, `DEPLOYMENT.md`, and `TROUBLESHOOTING.md` in `docs/`.
+- **Official MUSICA Release**: Initial official release of the independent MUSICA music streaming player for Android.
+- **Monochrome & Liquid Glass UI**: Clean black/monochrome design with transparent liquid-glass floating bottom dock and circular search button.
+- **Root Screen Background Wallpapers**: Custom wallpapers (Mount Fuji Journey, Forest Canopy, Golden Forest Light, Anime Green Tree, Artistic Text, and custom user uploads) applying across all screens (Home, Explore, Library, Settings, Extra Changes, Backgrounds).
+- **Dynamic App Logos**: Separate App Logos screen under Settings → Extra Changes with 6 selectable icons (Default red cassette, Black, Lavender, Mint Green, Sky Blue, Pink) using Android `activity-alias` for home screen launcher icon customization.
+- **Top Preview for You**: 1-minute video discovery previews (`60_000_000L`) with top-left mute/unmute control and direct fullscreen playback handoff.
+- **Mini Player Settings Toggle**: Added setting in Settings to enable or disable the floating/docked mini player while preserving background playback and notification controls.
+- **Modular Provider Architecture**: YouTube Music baseline and search, JioSaavn high-fidelity stream matching up to 320kbps, and Spotify playlist import.
+- **Discord Rich Presence**: Integrated Rich Presence showing track details, duration, audio quality, and YouTube Music link with all legacy branding removed.
+- **Complete Documentation Suite**: Added `ARCHITECTURE.md`, `API_DOCUMENTATION.md`, `DATABASE.md`, `INSTALLATION.md`, `BUILD_GUIDE.md`, `DEPLOYMENT.md`, and `TROUBLESHOOTING.md`.
 - **GitHub Community Standards**: Added `SECURITY.md`, Issue Templates for Bug Reports and Feature Requests, and Pull Request Template.
 
 ### Changed

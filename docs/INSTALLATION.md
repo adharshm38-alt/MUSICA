@@ -19,10 +19,10 @@ GitHub Releases provide separate APKs optimized for specific hardware architectu
 
 | APK File | Recommended Devices | Characteristics |
 | :--- | :--- | :--- |
-| **`MUSICA-v1.1.3-arm64-v8a.apk`** | 95%+ of modern Android phones & tablets (Snapdragon, MediaTek, Tensor, Exynos 64-bit) | Smallest size (~144 MB), fastest execution, optimized 64-bit native DSP code |
-| **`MUSICA-v1.1.3-armeabi-v7a.apk`** | Older 32-bit Android phones, budget tablets, or legacy smart TVs | 32-bit compatibility (~134 MB) |
-| **`MUSICA-v1.1.3-x86_64.apk`** | Android emulators on PC, Intel/AMD Chromebooks, Android-x86 OS | High performance on x86_64 processors (~150 MB) |
-| **`MUSICA-v1.1.3-universal.apk`** | Works on **any** supported Android device regardless of CPU | Contains native binaries for all 4 ABIs (~250 MB) |
+| **`MUSICA-v1.0.0-arm64-v8a.apk`** | 95%+ of modern Android phones & tablets (Snapdragon, MediaTek, Tensor, Exynos 64-bit) | Smallest size (~144 MB), fastest execution, optimized 64-bit native DSP code |
+| **`MUSICA-v1.0.0-armeabi-v7a.apk`** | Older 32-bit Android phones, budget tablets, or legacy smart TVs | 32-bit compatibility (~134 MB) |
+| **`MUSICA-v1.0.0-x86_64.apk`** | Android emulators on PC, Intel/AMD Chromebooks, Android-x86 OS | High performance on x86_64 processors (~150 MB) |
+| **`MUSICA-v1.0.0-universal.apk`** | Works on **any** supported Android device regardless of CPU | Contains native binaries for all 4 ABIs (~250 MB) |
 
 > [!TIP]
 > If you are unsure which CPU architecture your device uses, install **`arm64-v8a`** on any phone made after 2017, or use the **`universal`** build.

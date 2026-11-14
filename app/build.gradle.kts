@@ -50,7 +50,7 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://bitchord-listen-together.onrender.com"
+        ?: "https://musica-listen-together.onrender.com"
     ).trim().trimEnd('/')
 
 /*
@@ -251,6 +251,20 @@ android {
             // so a test of that layer fails on the logging rather than on the
             // logic it was written to check.
             isReturnDefaultValues = true
+        }
+    }
+
+    applicationVariants.all {
+        val variant = this
+        outputs.configureEach {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl ?: return@configureEach
+            val abi = output.getFilter(com.android.build.OutputFile.ABI)
+            val abiPart = if (abi != null) "_$abi" else "-universal"
+            output.outputFileName = if (variant.buildType.name == "release") {
+                "MUSICA-v${variant.versionName}${abiPart}.apk"
+            } else {
+                "MUSICA-v${variant.versionName}${abiPart}-${variant.buildType.name}.apk"
+            }
         }
     }
 }

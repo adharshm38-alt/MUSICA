@@ -26,9 +26,9 @@ jobs:
         echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
         echo "LISTEN_TOGETHER_SERVER=${{ secrets.LISTEN_TOGETHER_SERVER }}" >> local.properties
 
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > bitchord-release.jks
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > musica-release.jks
         {
-          echo "storeFile=bitchord-release.jks"
+          echo "storeFile=musica-release.jks"
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
           echo "keyAlias=${{ secrets.KEY_ALIAS }}"
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}"

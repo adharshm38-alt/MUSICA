@@ -2,7 +2,7 @@
 
 <br/>
 
-<img src="docs/assets/musica_logo.png" alt="MUSICA App Icon" width="160" />
+<img src="docs/assets/musica_logo_primary.png" alt="MUSICA App Icon" width="160" />
 
 # MUSICA
 
@@ -81,15 +81,15 @@
 
 <div align="center">
 
-| Home (Default) | Now Playing | Custom Wallpaper |
+| Home (Default) | Discover & Moods | About Screen |
 | :---: | :---: | :---: |
-| <img src="docs/assets/screenshots/home_default.png" width="280" alt="Home Screen" /> | <img src="docs/assets/screenshots/now_playing.png" width="280" alt="Now Playing Screen" /> | <img src="docs/assets/screenshots/custom_wallpaper.png" width="280" alt="Custom Wallpaper Screen" /> |
+| <img src="docs/assets/screenshots/home_screen.png" width="280" alt="Home Screen" /> | <img src="docs/assets/screenshots/discover_screen.png" width="280" alt="Discover Screen" /> | <img src="docs/assets/screenshots/about_screen.png" width="280" alt="About Screen" /> |
 
 <br/>
 
-| Video Discovery | Extra Changes & Personalization | Discord Rich Presence |
+| Custom Wallpaper | Extra Changes | Discord Rich Presence |
 | :---: | :---: | :---: |
-| <img src="docs/assets/screenshots/video_discovery.png" width="280" alt="Video Discovery" /> | <img src="docs/assets/screenshots/extra_changes.png" width="280" alt="Extra Changes" /> | <img src="docs/assets/screenshots/discord_rich_presence.png" width="280" alt="Discord Rich Presence" /> |
+| <img src="docs/assets/screenshots/custom_wallpaper.png" width="280" alt="Custom Wallpaper" /> | <img src="docs/assets/screenshots/extra_changes.png" width="280" alt="Extra Changes" /> | <img src="docs/assets/screenshots/discord_rich_presence.png" width="280" alt="Discord Rich Presence" /> |
 
 </div>
 
