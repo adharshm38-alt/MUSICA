@@ -120,7 +120,7 @@ export function AccountButton() {
               connect.mutate(false);
             }}
           >
-            Disconnect from BitChord
+            Disconnect from MUSICA
           </MenuItem>
         </Menu>
       )}

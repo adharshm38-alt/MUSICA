@@ -53,6 +53,16 @@ val listenTogetherServer: String = (
     ).trim().trimEnd('/')
 
 /*
+ * MUSICA Proton Mail OTP & Cloud User Data backend. Overridable in local.properties
+ * or environment variables for staging / Render deployment.
+ */
+val protonAuthServer: String = (
+    localProps.getProperty("PROTON_AUTH_SERVER")
+        ?: System.getenv("PROTON_AUTH_SERVER")
+        ?: "http://127.0.0.1:3001"
+    ).trim().trimEnd('/')
+
+/*
  * Bump this by hand before cutting each sideloaded test build ("beta2",
  * "beta3", ...) and blank it out before cutting the real release. Marks the
  * versionName below as a pre-release: AppUpdateChecker.isNewer() treats any
@@ -82,8 +92,8 @@ android {
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
         targetSdk = 36
-        versionCode = 39
-        versionName = "1.9.1"
+        versionCode = rootProject.extra["bitchordVersionCode"] as Int
+        versionName = rootProject.extra["bitchordVersionName"] as String
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -98,6 +108,11 @@ android {
         // TV has no addons; AddonAuth only reaches the compiler through the
         // shared phone sources, so it gets no server.
         buildConfigField("String", "ADDON_AUTH_URL", "\"\"")
+        buildConfigField(
+            "String",
+            "PROTON_AUTH_SERVER",
+            "\"${protonAuthServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
+        )
         // The TV APKs share a GitHub release with the phone ones and are told
         // apart by name (MUSICATV-v1.8.apk, MUSICATV-v1.8_x86_64.apk), so
         // the updater installs the TV app here, never the phone app. See
