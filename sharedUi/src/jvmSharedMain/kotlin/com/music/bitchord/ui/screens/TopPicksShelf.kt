@@ -1,13 +1,18 @@
 package com.music.bitchord.ui.screens
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,7 +27,10 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.foundation.lazy.LazyListLayoutInfo
@@ -141,6 +149,16 @@ private val TOP_PICK_MAX_WIDTH = 280.dp
 
 private val TopPickShape = RoundedCornerShape(12.dp)
 
+private val TopPickBackgrounds = listOf(
+    Res.drawable.top_pick_bg_1, // 1. Pink / Coral
+    Res.drawable.top_pick_bg_2, // 2. Lavender / Purple
+    Res.drawable.top_pick_bg_3, // 3. Sky Blue
+    Res.drawable.top_pick_bg_4, // 4. Peach / Orange
+    Res.drawable.top_pick_bg_5, // 5. Mint Green
+    Res.drawable.top_pick_bg_6, // 6. Periwinkle Blue
+    Res.drawable.top_pick_bg_7, // 7. Pink / Violet
+)
+
 private fun topPickWidth(available: Dp): Dp = minOf(available * TOP_PICK_FRACTION, TOP_PICK_MAX_WIDTH)
 
 @Composable
@@ -151,6 +169,7 @@ internal fun TopPicksShelf(
     /** The card, and the title it was showing — the station's name for the queue. */
     onClick: (TopPick, String) -> Unit,
     onLongPress: ((TopPick) -> Unit)?,
+    onRefresh: (() -> Unit)? = null,
 ) {
     val rowState = rememberLazyListState()
     // Which cards turned out to have a clip, by index, and which one plays.
@@ -163,7 +182,45 @@ internal fun TopPicksShelf(
             .collect { (scrolling, next) -> if (!scrolling) owner = next }
     }
     Column(Modifier.padding(bottom = 26.dp)) {
-        SectionHeader(stringResource(Res.string.top_picks_for_you))
+        Row(
+            modifier = Modifier
+                .padding(horizontal = PAGE_GUTTER, vertical = 6.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = localizeShelfTitle(stringResource(Res.string.top_picks_for_you)),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (onRefresh != null) {
+                var isRotating by remember { mutableStateOf(false) }
+                val rotation by animateFloatAsState(
+                    targetValue = if (isRotating) 360f else 0f,
+                    animationSpec = tween(durationMillis = 500, easing = LinearEasing),
+                    finishedListener = { isRotating = false },
+                )
+                IconButton(
+                    onClick = {
+                        isRotating = true
+                        onRefresh()
+                    },
+                    modifier = Modifier.size(32.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Refresh",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .graphicsLayer { rotationZ = rotation },
+                    )
+                }
+            }
+        }
         BoxWithConstraints {
             val cardWidth = topPickWidth(maxWidth)
             PausedWhileScrolling(rowState) {
@@ -172,7 +229,11 @@ internal fun TopPicksShelf(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     state = rowState,
                 ) {
-                    itemsIndexed(picks, key = { index, pick -> "$index:${pick.kind}:${pick.title}" }) { index, pick ->
+                    itemsIndexed(
+                        items = picks,
+                        key = { index, pick -> "$index:${pick.kind}:${pick.title}" },
+                        contentType = { _, pick -> pick.kind },
+                    ) { index, pick ->
                         CompositionLocalProvider(
                             LocalClipSlot provides ClipSlot(
                                 mayPlay = index == owner,
@@ -181,6 +242,7 @@ internal fun TopPicksShelf(
                         ) {
                             TopPickCard(
                                 pick = pick,
+                                index = index,
                                 listenerName = listenerName,
                                 onClick = onClick,
                                 onLongPress = onLongPress?.takeIf { pick.kind == TopPickKind.LATEST_RELEASE },
@@ -256,7 +318,7 @@ private fun cardText(pick: TopPick, listenerName: String?): CardText {
             subtitle = pick.subtitle,
         )
         TopPickKind.NEW_RELEASE_MIX -> CardText(
-            eyebrow = stringResource(Res.string.top_pick_made_for_you),
+            eyebrow = "",
             title = pick.title,
             subtitle = pick.subtitle,
         )
@@ -272,6 +334,7 @@ private fun cardText(pick: TopPick, listenerName: String?): CardText {
 @Composable
 private fun TopPickCard(
     pick: TopPick,
+    index: Int,
     listenerName: String?,
     onClick: (TopPick, String) -> Unit,
     onLongPress: ((TopPick) -> Unit)?,
@@ -279,6 +342,7 @@ private fun TopPickCard(
 ) {
     val text = cardText(pick, listenerName)
     val longPress = onLongPress?.let { { it(pick) } }
+    val bgRes = TopPickBackgrounds[index % TopPickBackgrounds.size]
     Box(
         modifier = modifier
             .aspectRatio(TOP_PICK_RATIO)
@@ -288,44 +352,41 @@ private fun TopPickCard(
             .longPressMenuClickable(onClick = { onClick(pick, text.title) }, onLongClick = longPress)
             .contextClick(longPress),
     ) {
-        val eyebrowColor: Color
-        val branded: Boolean
+        // Pastel card background (one of the seven styles)
+        Image(
+            painter = painterResource(bgRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        val eyebrowColor: Color = Color.White.copy(alpha = 0.88f)
         when (pick.kind) {
             TopPickKind.PERSONAL_STATION -> {
-                PersonalStationArt(Modifier.fillMaxSize())
-                eyebrowColor = Color(0xFFFFD2DA)
-                branded = true
+                PersonalStationArt(Modifier.fillMaxSize(), drawBackground = false)
             }
             TopPickKind.DISCOVERY_STATION -> {
-                DiscoveryStationArt(Modifier.fillMaxSize())
-                eyebrowColor = Color(0xFFCDBDFF)
-                branded = true
+                DiscoveryStationArt(Modifier.fillMaxSize(), drawBackground = false)
             }
             TopPickKind.MOOD -> {
                 val style = (pick.mood ?: TopPickMood.FEEL_GOOD).style()
-                MoodArt(pick.mood ?: TopPickMood.FEEL_GOOD, style, Modifier.fillMaxSize())
-                eyebrowColor = style.eyebrow
-                branded = true
+                MoodArt(pick.mood ?: TopPickMood.FEEL_GOOD, style, Modifier.fillMaxSize(), drawBackground = false)
             }
             TopPickKind.ARTIST_AND_SIMILAR -> {
                 val palette = collagePalette(pick.artistName.orEmpty())
-                ArtistCollageArt(pick.images, palette, Modifier.fillMaxSize())
-                eyebrowColor = palette.eyebrow
-                branded = true
+                ArtistCollageArt(pick.images, palette, Modifier.fillMaxSize(), drawBackground = false)
             }
             TopPickKind.LATEST_RELEASE, TopPickKind.NEW_RELEASE_MIX -> {
                 ReleaseArt(
                     pick.images.firstOrNull(),
                     Modifier.fillMaxSize(),
-                    // A New Release Mix is a playlist; only a real release has a sleeve that moves.
                     motion = pick.takeIf { it.kind == TopPickKind.LATEST_RELEASE }?.let { release ->
                         CardMotionSource(release.browseId ?: release.title) {
                             AppUi.host.releaseMotion(release.title, release.artistName.orEmpty())
                         }
                     },
+                    drawBackground = false,
                 )
-                eyebrowColor = PhotoEyebrow
-                branded = false
             }
             TopPickKind.FEATURED_ARTIST -> {
                 AsyncImage(
@@ -335,35 +396,36 @@ private fun TopPickCard(
                     modifier = Modifier.fillMaxSize(),
                 )
                 CardMotion(pick.artistMotion(), Modifier.fillMaxSize())
-                // The caption sits on the picture's own darkened foot, as on
-                // Apple's photo cards, rather than on a band of flat black.
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0.45f to Color.Transparent,
-                                0.72f to Color.Black.copy(alpha = 0.45f),
-                                1f to Color.Black.copy(alpha = 0.82f),
-                            ),
-                        ),
-                )
-                eyebrowColor = PhotoEyebrow
-                branded = false
             }
         }
-        if (branded) {
-            Icon(
-                painter = painterResource(Res.drawable.ic_logo),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 12.dp)
-                    .height(15.dp)
-                    .aspectRatio(730f / 484f),
-            )
-        }
+
+        // Soft protective gradient at the bottom for crisp text contrast
+        Box(
+            Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.55f)
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.40f to Color.Black.copy(alpha = 0.25f),
+                        1f to Color.Black.copy(alpha = 0.72f),
+                    ),
+                ),
+        )
+
+        // Official white pixel-style cassette logo placed at top-right on EVERY card
+        // 100% transparent background, showing card's pastel colour behind it
+        Image(
+            painter = painterResource(Res.drawable.musica_symbol),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 12.dp, end = 12.dp)
+                .height(16.dp)
+                .aspectRatio(739f / 417f),
+        )
+
         CardCaption(text, eyebrowColor, Modifier.align(Alignment.BottomStart))
     }
 }
@@ -375,13 +437,15 @@ private fun CardCaption(text: CardText, eyebrowColor: Color, modifier: Modifier)
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
     ) {
-        Text(
-            text = text.eyebrow,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 16.sp),
-            color = eyebrowColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        if (text.eyebrow.isNotBlank()) {
+            Text(
+                text = text.eyebrow,
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 16.sp),
+                color = eyebrowColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Text(
             text = text.title,
             style = MaterialTheme.typography.titleMedium.copy(
@@ -422,33 +486,41 @@ private val PhotoEyebrow = Color.White.copy(alpha = 0.62f)
  * once found, dissolving into the blur the same way the still does.
  */
 @Composable
-private fun ReleaseArt(url: String?, modifier: Modifier, motion: CardMotionSource? = null) {
+private fun ReleaseArt(
+    url: String?,
+    modifier: Modifier,
+    motion: CardMotionSource? = null,
+    drawBackground: Boolean = true,
+) {
     // How much of the still the clip has covered. Two faded layers stacked
     // would leave the still showing through the clip's own fade, so the still
     // steps out as the clip comes in.
     var covered by remember { mutableFloatStateOf(0f) }
-    Box(modifier.background(Color.Black)) {
-        AsyncImage(
-            model = rememberBlurredBackdrop(url.croppedAt(BACKDROP_SOURCE_PX).whenArtworkReady()),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.42f),
-        )
-        // Toned down toward the caption, as Apple does, so the white text reads
-        // on any cover.
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        0.6f to Color.Black.copy(alpha = 0.08f),
-                        1f to Color.Black.copy(alpha = 0.38f),
+    val baseModifier = if (drawBackground) modifier.background(Color.Black) else modifier
+    Box(baseModifier) {
+        if (drawBackground) {
+            AsyncImage(
+                model = rememberBlurredBackdrop(url.croppedAt(BACKDROP_SOURCE_PX).whenArtworkReady()),
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.42f),
+            )
+            // Toned down toward the caption, as Apple does, so the white text reads
+            // on any cover.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.6f to Color.Black.copy(alpha = 0.08f),
+                            1f to Color.Black.copy(alpha = 0.38f),
+                        ),
                     ),
-                ),
-        )
+            )
+        }
         AsyncImage(
             model = url.croppedAt(HEADER_ART_PX).whenArtworkReady(),
             contentDescription = null,
@@ -730,7 +802,7 @@ private class PersonalBrushes(val background: Brush, val layers: List<Brush>)
  * drift in and out of step, so the stack seems to fold and unfold.
  */
 @Composable
-private fun PersonalStationArt(modifier: Modifier) {
+private fun PersonalStationArt(modifier: Modifier, drawBackground: Boolean = false) {
     val phase by loopPhase(STATION_PERIOD_MS)
     val path = remember { Path() }
     val brushes = remember {
@@ -754,7 +826,9 @@ private fun PersonalStationArt(modifier: Modifier) {
         val w = size.width
         val h = size.height
         val cached = brushes.get(size)
-        drawRect(cached.background)
+        if (drawBackground) {
+            drawRect(cached.background)
+        }
         PersonalLayers.forEachIndexed { index, (rest, _, _) ->
             // The outer arrow is pinned to the card's edge; the inner ones swing.
             val tip = if (index == 0) rest else rest + 0.07f * wave(phase, index * 0.19f)
@@ -787,7 +861,7 @@ private class DiscoveryBrushes(val background: Brush, val top: List<Brush>, val 
  * indigo and teal shards opening around its tip, which sweep slowly to and fro.
  */
 @Composable
-private fun DiscoveryStationArt(modifier: Modifier) {
+private fun DiscoveryStationArt(modifier: Modifier, drawBackground: Boolean = false) {
     val phase by loopPhase(STATION_PERIOD_MS)
     val path = remember { Path() }
     val brushes = remember {
@@ -818,7 +892,9 @@ private fun DiscoveryStationArt(modifier: Modifier) {
         val w = size.width
         val h = size.height
         val cached = brushes.get(size)
-        drawRect(cached.background)
+        if (drawBackground) {
+            drawRect(cached.background)
+        }
         fun fan(edgeY: Float, shards: List<Brush>, offset: Float) {
             var previous = DiscoveryEdges[0]
             for (i in 1..DiscoveryEdges.lastIndex) {
@@ -987,13 +1063,16 @@ private fun MoodArt(
     square: Boolean = false,
     /** Drawn at rest — see [stillPhase] — and never asks for a frame. */
     still: Boolean = false,
+    drawBackground: Boolean = true,
 ) {
     // Read only in the draw below, so a frame of the loop redraws this canvas
     // and recomposes nothing.
     val loop = if (still) null else loopPhase(style.periodMs)
     val cache = remember(mood) { EmblemCache() }
     Canvas(if (still) modifier else modifier.then(RetainedArt)) {
-        drawRect(style.background)
+        if (drawBackground) {
+            drawRect(style.background)
+        }
         val w = size.width
         val h = size.height
         val f = if (square) {
@@ -1559,7 +1638,11 @@ internal fun FindYourMoodShelf(onClick: (TopPickMood, String) -> Unit, onShowAll
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             state = rowState,
         ) {
-            items(TopPickMood.entries.filter { it.isCoreMood }, key = { it.name }) { mood ->
+            items(
+                items = TopPickMood.entries.filter { it.isCoreMood },
+                key = { it.name },
+                contentType = { "mood_tile" },
+            ) { mood ->
                 MoodTile(mood, onClick, Modifier.width(SHELF_CARD_WIDTH))
             }
         }
@@ -1611,15 +1694,14 @@ private fun MoodTile(mood: TopPickMood, onClick: (TopPickMood, String) -> Unit, 
             // it — for as long as the shelf was in view; the motion is Top
             // Picks' own, one card at a time.
             MoodArt(mood, mood.style(), Modifier.fillMaxSize(), square = true, still = true)
-            Icon(
-                painter = painterResource(Res.drawable.ic_logo),
+            Image(
+                painter = painterResource(Res.drawable.musica_symbol),
                 contentDescription = null,
-                tint = Color.White,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 8.dp, end = 8.dp)
                     .height(11.dp)
-                    .aspectRatio(730f / 484f),
+                    .aspectRatio(739f / 417f),
             )
         }
         Spacer(Modifier.height(10.dp))
@@ -1662,10 +1744,14 @@ private fun ArtistCollageArt(
     images: List<String>,
     palette: CollagePalette,
     modifier: Modifier,
+    drawBackground: Boolean = true,
 ) {
-    BoxWithConstraints(
-        modifier.background(Brush.verticalGradient(listOf(palette.top, palette.bottom))),
-    ) {
+    val bgModifier = if (drawBackground) {
+        modifier.background(Brush.verticalGradient(listOf(palette.top, palette.bottom)))
+    } else {
+        modifier
+    }
+    BoxWithConstraints(bgModifier) {
         val w = maxWidth
         val h = maxHeight
         // Centre x, centre y (as shares of the card) and diameter (of its width).

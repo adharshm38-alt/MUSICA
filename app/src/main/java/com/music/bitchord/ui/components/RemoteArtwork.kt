@@ -7,29 +7,42 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.music.bitchord.data.MusicArtworkResolver
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.remote.RemoteArtworkStore
 
 /**
- * A drawable art URL for [song]: its own thumbnail when it has one, else the
- * embedded picture pulled out of the remote file and cached — else null.
- *
- * The extraction only ever runs for remote-library tracks with no thumbnail;
- * every other row resolves synchronously to what it already had, so this is
- * safe to call from shared components like [SongRow] that draw every library
- * in the app. Keyed on the track id, so a recycled row re-resolves instead
- * of flashing a stranger's cover.
+ * A drawable art URL for [song]:
+ * - Resolves official 3000x3000px music album/single artwork via [MusicArtworkResolver].
+ * - Never uses YouTube video thumbnails as default music cover artwork.
+ * - Extracts embedded picture for local/remote library files.
+ * - Falls back cleanly so the player shows a clean MUSICA placeholder.
  */
 @Composable
 fun rememberRemoteArtworkUrl(song: Song?): String? {
     val context = LocalContext.current
     val key = song?.videoId
-    var resolved by remember(key) { mutableStateOf(song?.thumbnailUrl) }
-    LaunchedEffect(key) {
-        if (song != null && song.thumbnailUrl == null &&
-            (song.videoId.startsWith("webdav:") || song.videoId.startsWith("smb:"))
-        ) {
-            resolved = RemoteArtworkStore.resolveArt(context, song)
+    val cachedArt = remember(key, song?.title, song?.artist) {
+        MusicArtworkResolver.getCached(song)
+    }
+    var resolved by remember(key, song?.title, song?.artist) {
+        mutableStateOf(
+            cachedArt ?: song?.thumbnailUrl?.takeIf { !MusicArtworkResolver.isVideoThumbnail(it) }
+        )
+    }
+    LaunchedEffect(key, song?.title, song?.artist) {
+        if (song == null) return@LaunchedEffect
+        if (song.videoId.startsWith("webdav:") || song.videoId.startsWith("smb:")) {
+            if (song.thumbnailUrl == null) {
+                resolved = RemoteArtworkStore.resolveArt(context, song)
+            }
+        } else {
+            val art = MusicArtworkResolver.resolveArtwork(song)
+            if (art != null) {
+                resolved = art
+            } else if (MusicArtworkResolver.isVideoThumbnail(resolved)) {
+                resolved = null
+            }
         }
     }
     return resolved

@@ -1,8 +1,13 @@
 package com.music.bitchord.playback
 
+import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioFormat
@@ -10,10 +15,12 @@ import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.audiofx.AudioEffect
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
+import androidx.core.content.ContextCompat
 import com.music.bitchord.data.TelemetryProvenance
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -61,6 +68,7 @@ import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.exoplayer.upstream.LoadErrorHandlingPolicy
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
+import androidx.media3.session.MediaNotification
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
@@ -218,6 +226,9 @@ const val ACTION_TOGGLE_FAVORITE = "com.music.bitchord.action.TOGGLE_FAVORITE"
 
 /** Session command used by the media notification's and the 4×1 widget's Shuffle button. */
 const val ACTION_TOGGLE_SHUFFLE = "com.music.bitchord.action.TOGGLE_SHUFFLE"
+
+/** Session command used to re-sync the media notification when permissions or foreground state changes. */
+const val ACTION_REFRESH_NOTIFICATION = "com.music.bitchord.action.REFRESH_NOTIFICATION"
 
 /** Session actions exposed to Android Auto for the track that is playing. */
 const val ACTION_START_STATION = "com.music.bitchord.action.START_STATION"
@@ -791,6 +802,11 @@ class PlaybackService : MediaLibraryService() {
     private val upgradeQualityCommand = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
+    private val refreshNotificationCommand = SessionCommand(ACTION_REFRESH_NOTIFICATION, Bundle.EMPTY)
+
+    /** Latest notification produced by Media3, used as a fallback if FGS promotion is blocked. */
+    @Volatile
+    private var lastMediaNotification: MediaNotification? = null
 
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
@@ -1306,12 +1322,55 @@ class PlaybackService : MediaLibraryService() {
         measuredBitrateCache.clear()
         QualityUpgrade.forgetLastSession()
 
+        ensurePlaybackNotificationChannel()
+
+        val defaultNotificationProvider = DefaultMediaNotificationProvider.Builder(this)
+            .setChannelId(CHANNEL_ID)
+            .setChannelName(R.string.playback_channel_name)
+            .build()
+            .apply { setSmallIcon(R.drawable.ic_notification_logo) }
+
         setMediaNotificationProvider(
-            DefaultMediaNotificationProvider.Builder(this)
-                .setChannelId(CHANNEL_ID)
-                .setChannelName(R.string.playback_channel_name)
-                .build()
-                .apply { setSmallIcon(R.drawable.ic_notification_logo) },
+            object : MediaNotification.Provider {
+                override fun createNotification(
+                    mediaSession: MediaSession,
+                    customLayout: ImmutableList<CommandButton>,
+                    actionFactory: MediaNotification.ActionFactory,
+                    onNotificationChangedCallback: MediaNotification.Provider.Callback,
+                ): MediaNotification {
+                    val wrappedCallback = MediaNotification.Provider.Callback { updated ->
+                        updated.notification.color = android.graphics.Color.WHITE
+                        lastMediaNotification = updated
+                        onNotificationChangedCallback.onNotificationChanged(updated)
+                    }
+                    val notification = defaultNotificationProvider.createNotification(
+                        mediaSession,
+                        customLayout,
+                        actionFactory,
+                        wrappedCallback,
+                    )
+                    notification.notification.color = android.graphics.Color.WHITE
+                    lastMediaNotification = notification
+                    return notification
+                }
+
+                override fun handleCustomCommand(
+                    session: MediaSession,
+                    action: String,
+                    extras: android.os.Bundle,
+                ): Boolean = defaultNotificationProvider.handleCustomCommand(session, action, extras)
+
+                override fun getNotificationChannelInfo(): MediaNotification.Provider.NotificationChannelInfo =
+                    defaultNotificationProvider.notificationChannelInfo
+            },
+        )
+
+        setListener(
+            object : MediaSessionService.Listener {
+                override fun onForegroundServiceStartNotAllowedException() {
+                    postFallbackMediaNotificationIfActive()
+                }
+            },
         )
 
         // Both the player screen and notification route their Shuffle command
@@ -1865,6 +1924,7 @@ class PlaybackService : MediaLibraryService() {
             .setId(SESSION_ID)
             .setSessionActivity(sessionActivity())
             .build()
+        mediaSession?.let(::addSession)
         refreshCustomLayouts()
 
         // Last, so a receiver that outlived the app is adopted by a service
@@ -2125,6 +2185,55 @@ class PlaybackService : MediaLibraryService() {
         session.setCustomLayout(car)
         session.getMediaNotificationControllerInfo()?.let {
             session.setCustomLayout(it, if (carControllers.isEmpty()) notificationButtons() else car)
+        }
+    }
+
+    /** Creates the playback notification channel up front with lock-screen visibility. */
+    private fun ensurePlaybackNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        if (nm.getNotificationChannel(CHANNEL_ID) != null) return
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            getString(R.string.playback_channel_name),
+            NotificationManager.IMPORTANCE_LOW,
+        ).apply {
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    /** Refreshes custom notification buttons and nudges Media3 to sync the notification when active. */
+    private fun syncNotificationSession(force: Boolean = false) {
+        refreshCustomLayouts()
+        val active = mediaSession?.player ?: return
+        if (force || (active.mediaItemCount > 0 && active.playbackState != Player.STATE_IDLE)) {
+            triggerNotificationUpdate()
+        }
+    }
+
+    /**
+     * Fallback invoked only if Android refuses FGS promotion while an active
+     * playback session exists; posts the already-built notification directly so
+     * media controls still reach the shade instead of silently vanishing.
+     */
+    private fun postFallbackMediaNotificationIfActive() {
+        val current = mediaSession?.player ?: player ?: return
+        if (current.mediaItemCount <= 0 || current.playbackState == Player.STATE_IDLE) return
+        val cached = lastMediaNotification ?: return
+        val canNotify = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        if (!canNotify) return
+        try {
+            ensurePlaybackNotificationChannel()
+            getSystemService(NotificationManager::class.java)
+                ?.notify(cached.notificationId, cached.notification)
+        } catch (e: SecurityException) {
+            Log.w("PlaybackService", "Unable to post fallback media notification", e)
         }
     }
 
@@ -2627,6 +2736,7 @@ class PlaybackService : MediaLibraryService() {
         adoptFormatOf(incoming)
 
         mediaSession?.player = newSessionPlayer(incoming, requireNotNull(crossfade))
+        syncNotificationSession()
 
         incoming.volume = 1f
         outgoing.stop()
@@ -3501,6 +3611,7 @@ class PlaybackService : MediaLibraryService() {
         adoptFormatOf(incoming)
 
         mediaSession?.player = newSessionPlayer(incoming, requireNotNull(crossfade))
+        syncNotificationSession()
 
         // The queue moving on used to arrive here as an item transition on the
         // one player that owned the queue. It cannot any more — the incoming
@@ -3642,6 +3753,7 @@ class PlaybackService : MediaLibraryService() {
             saveBoundedContextSnapshot(exoPlayer)
         }
         currentAudioInputFormat = null
+        lastPublishedSubtitle = null
         NerdStats.onTrackTransition(mediaItem?.mediaId)
         // A rendition discarded and fetched again comes back under the same
         // URI, so a size measured for the last track isn't kept past it.
@@ -7159,6 +7271,7 @@ class PlaybackService : MediaLibraryService() {
         crossfade = newCrossfade
         newCrossfade.start()
         mediaSession?.player = newSessionPlayer(newActive, newCrossfade)
+        syncNotificationSession()
         applyOutputRoute()
         if (items.isNotEmpty()) newActive.prepare()
         newActive.playWhenReady = playWhenReady
@@ -7806,8 +7919,8 @@ class PlaybackService : MediaLibraryService() {
      * a foreground-service-backed media session.
      */
     override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
         if (AppSettings.stopOnTaskRemoved.value) {
+            super.onTaskRemoved(rootIntent)
             // A receiver left playing with nothing on the phone to drive it
             // would run out its few queued tracks and stop on its own anyway;
             // better to say so now than leave the TV on a casting screen.
@@ -7816,107 +7929,125 @@ class PlaybackService : MediaLibraryService() {
             // playing on its own out of a service that is on its way out.
             eachPlayer { it.stop() }
             stopSelf()
+        } else {
+            val active = mediaSession?.player ?: player
+            // Media3's default onTaskRemoved() stops the service whenever
+            // Player.isPlaying is false, which would kill buffering/resolving
+            // playback if the user swipes the task away mid-load.
+            if (active?.playWhenReady != true && !castPlayback.active) {
+                super.onTaskRemoved(rootIntent)
+            }
         }
     }
 
 
     override fun onDestroy() {
-        WearBridge.attachStreams(null)
-        WearBridge.releaseSpeaker()
-        // Let go of the receiver's player but leave its session alone: a
-        // service that idles out while casting is not the listener choosing to
-        // stop, and the next one picks the session up where it was.
-        CastController.detach(castPlayback)
-        castPlayback.release()
-        closeAudioEffectSession()
-        bluetoothTracker.stop()
-        audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
-        partySync?.stop()
-        partySync = null
-        player?.let {
-            saveQueueSnapshot(it)
-            savePlaybackState(it)
-        }
-        // And to leave the widgets showing a play button. Nothing else reports a
-        // swipe-away, so a widget left on the home screen would sit there with a
-        // pause glyph on a service that no longer exists.
-        publishWidgetState(playing = false)
-        lyricsTickerJob?.cancel()
-        lyricsTickerJob = null
-        serviceLyricsJob?.cancel()
-        serviceLyricsJob = null
-        serviceLyrics = null
-        cancelPrefetch()
-        trackAnalyzer.release()
-        loudnessRetryJob?.cancel()
-        // The YouTube Music history entry for whatever was playing, closed out
-        // on the same terms as the ListenBrainz submit below: a swipe-away never
-        // fires STATE_ENDED, and the tracker's own scope outlives this service,
-        // so the ping still goes out after the service scope is cancelled.
-        PlaybackTracker.onPlaybackFinished(
-            player?.currentPosition?.div(1000) ?: lastPositionSeconds,
-        )
-        // Also the last chance to close out the track that was playing — a
-        // swipe-away or stop never fires STATE_ENDED, so the session would
-        // otherwise end with an un-scrobbled song. This must not ride on the
-        // service scope: it is cancelled a few lines down, and the request
-        // should still reach ListenBrainz.
-        val lastSong = listenBrainzSong
-        if (lastSong != null && listenBrainzStartMs > 0L) {
-            val lbEnabled =
-                AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
-            val lbToken = AppSettings.listenBrainzToken.value
-            if (lbEnabled && lbToken.isNotBlank()) {
-                val lastStart = listenBrainzStartMs
-                val lastDuration = player?.duration?.takeIf { it > 0 }
+        try {
+            WearBridge.attachStreams(null)
+            WearBridge.releaseSpeaker()
+            // Let go of the receiver's player but leave its session alone: a
+            // service that idles out while casting is not the listener choosing to
+            // stop, and the next one picks the session up where it was.
+            CastController.detach(castPlayback)
+            castPlayback.release()
+            closeAudioEffectSession()
+            bluetoothTracker.stop()
+            audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
+            partySync?.stop()
+            partySync = null
+            player?.let {
+                saveQueueSnapshot(it)
+                savePlaybackState(it)
+            }
+            // And to leave the widgets showing a play button. Nothing else reports a
+            // swipe-away, so a widget left on the home screen would sit there with a
+            // pause glyph on a service that no longer exists.
+            publishWidgetState(playing = false)
+            lyricsTickerJob?.cancel()
+            lyricsTickerJob = null
+            serviceLyricsJob?.cancel()
+            serviceLyricsJob = null
+            serviceLyrics = null
+            cancelPrefetch()
+            trackAnalyzer.release()
+            loudnessRetryJob?.cancel()
+            // The YouTube Music history entry for whatever was playing, closed out
+            // on the same terms as the ListenBrainz submit below: a swipe-away never
+            // fires STATE_ENDED, and the tracker's own scope outlives this service,
+            // so the ping still goes out after the service scope is cancelled.
+            PlaybackTracker.onPlaybackFinished(
+                player?.currentPosition?.div(1000) ?: lastPositionSeconds,
+            )
+            // Also the last chance to close out the track that was playing — a
+            // swipe-away or stop never fires STATE_ENDED, so the session would
+            // otherwise end with an un-scrobbled song. This must not ride on the
+            // service scope: it is cancelled a few lines down, and the request
+            // should still reach ListenBrainz.
+            val lastSong = listenBrainzSong
+            if (lastSong != null && listenBrainzStartMs > 0L) {
+                val lbEnabled =
+                    AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
+                val lbToken = AppSettings.listenBrainzToken.value
+                if (lbEnabled && lbToken.isNotBlank()) {
+                    val lastStart = listenBrainzStartMs
+                    val lastDuration = player?.duration?.takeIf { it > 0 }
+                    CoroutineScope(Dispatchers.IO).launch {
+                        ListenBrainzManager.submitFinished(
+                            lbToken, lastSong, lastStart, System.currentTimeMillis(), lastDuration,
+                            AppSettings.listenBrainzPrimaryArtistOnly.value,
+                        )
+                    }
+                }
+            }
+            scrobbleManager?.destroy()
+            scrobbleManager = null
+            // Last chance to get the current track's minutes onto disk: the scope is
+            // cancelled a few lines down and the sampler goes with it.
+            ListeningRecorder.onStopped()
+            // Discord, on the same terms as the ListenBrainz submit above: the
+            // service scope is cancelled a few lines down, and a presence left up
+            // would advertise a track that stopped when the process did — until
+            // Discord noticed the socket had gone, which can take minutes.
+            discordRpc?.let { rpc ->
+                discordRpc = null
+                val wasUp = discordPresenceUp
+                discordPresenceUp = false
                 CoroutineScope(Dispatchers.IO).launch {
-                    ListenBrainzManager.submitFinished(
-                        lbToken, lastSong, lastStart, System.currentTimeMillis(), lastDuration,
-                        AppSettings.listenBrainzPrimaryArtistOnly.value,
-                    )
+                    withTimeoutOrNull(DISCORD_TEARDOWN_TIMEOUT_MS) {
+                        if (wasUp) runCatching { rpc.close() }
+                    }
+                    runCatching { rpc.closeRPC() }
                 }
             }
-        }
-        scrobbleManager?.destroy()
-        scrobbleManager = null
-        // Last chance to get the current track's minutes onto disk: the scope is
-        // cancelled a few lines down and the sampler goes with it.
-        ListeningRecorder.onStopped()
-        // Discord, on the same terms as the ListenBrainz submit above: the
-        // service scope is cancelled a few lines down, and a presence left up
-        // would advertise a track that stopped when the process did — until
-        // Discord noticed the socket had gone, which can take minutes.
-        discordRpc?.let { rpc ->
-            discordRpc = null
-            val wasUp = discordPresenceUp
-            discordPresenceUp = false
-            CoroutineScope(Dispatchers.IO).launch {
-                withTimeoutOrNull(DISCORD_TEARDOWN_TIMEOUT_MS) {
-                    if (wasUp) runCatching { rpc.close() }
-                }
-                runCatching { rpc.closeRPC() }
+            scope.cancel()
+        } finally {
+            QueueShuffle.isCrossfadeTransitioning = null
+            runCatching { clearListener() }
+            runCatching { crossfade?.release() }
+            crossfade = null
+            lastMediaNotification = null
+            mediaSession?.let { session ->
+                runCatching { removeSession(session) }
+                runCatching { session.release() }
             }
+            mediaSession = null
+            runCatching {
+                player?.removeListener(playbackListener)
+                player?.removeAnalyticsListener(formatListener)
+                player?.release()
+            }
+            player = null
+            // Released too, and not conditionally: mid-crossfade it is holding a
+            // decoder and an open audio track of its own, and the service going away
+            // is not a reason to leave either behind.
+            runCatching { spare?.release() }
+            spare = null
+            AudioOutputStatus.reset()
+            NerdStats.forgetLastSession()
+            localBitrateCache.clear()
+            measuredBitrateCache.clear()
+            super.onDestroy()
         }
-        scope.cancel()
-        QueueShuffle.isCrossfadeTransitioning = null
-        crossfade?.release()
-        crossfade = null
-        mediaSession?.release()
-        mediaSession = null
-        player?.removeListener(playbackListener)
-        player?.removeAnalyticsListener(formatListener)
-        player?.release()
-        player = null
-        // Released too, and not conditionally: mid-crossfade it is holding a
-        // decoder and an open audio track of its own, and the service going away
-        // is not a reason to leave either behind.
-        spare?.release()
-        spare = null
-        AudioOutputStatus.reset()
-        NerdStats.forgetLastSession()
-        localBitrateCache.clear()
-        measuredBitrateCache.clear()
-        super.onDestroy()
     }
 
     private fun loadLyricsForCurrentTrack() {
@@ -8639,6 +8770,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(upgradeQualityCommand)
                 .add(swapVersionCommand)
                 .add(queueDragCommand)
+                .add(refreshNotificationCommand)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
@@ -8650,6 +8782,8 @@ class PlaybackService : MediaLibraryService() {
             if (session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)) {
                 carControllers += controller
                 refreshCustomLayouts()
+            } else if (session.isMediaNotificationController(controller)) {
+                syncNotificationSession()
             }
         }
 
@@ -8694,6 +8828,7 @@ class PlaybackService : MediaLibraryService() {
                         partySync?.endQueueDrag()
                     }
                 }
+                ACTION_REFRESH_NOTIFICATION -> syncNotificationSession()
                 // A widget or watch drawn before the track changed can still
                 // send this for one the player offers no Like on.
                 ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem

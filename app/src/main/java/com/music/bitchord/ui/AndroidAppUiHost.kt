@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.AppleCatalogue
+import com.music.bitchord.data.PlaylistCoverStore
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
 import com.music.bitchord.data.canvas.CanvasArtwork
@@ -16,6 +17,8 @@ object AndroidAppUiHost : AppUiHost {
     override val swipeToPlayNext = AppSettings.swipeToPlayNext
     override val pinnedPlaylists = AppSettings.pinnedPlaylists
     override val librarySort = AppSettings.librarySort
+    override val customPlaylistCovers
+        get() = PlaylistCoverStore.covers
 
     @Composable
     override fun downloadedIds(): Set<String> {

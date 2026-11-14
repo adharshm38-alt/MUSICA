@@ -1,8 +1,11 @@
 package com.music.bitchord.playback
 
 import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -93,6 +96,27 @@ fun rememberMediaController(): MediaController? {
         }
     }
     return controller
+}
+
+/**
+ * Starts [PlaybackService] as a standard service before playback begins so
+ * subsequent foreground notification promotion isn't gated by controller binding
+ * state if stream resolution finishes after backgrounding.
+ */
+fun ensurePlaybackServiceStarted(context: Context) {
+    runCatching {
+        context.startService(Intent(context, PlaybackService::class.java))
+    }.onFailure { error ->
+        Log.w("PlayerConnection", "Unable to start PlaybackService", error)
+    }
+}
+
+/** Asks [PlaybackService] to re-sync custom actions and the Android media notification. */
+fun MediaController.refreshNotification() {
+    sendCustomCommand(
+        SessionCommand(ACTION_REFRESH_NOTIFICATION, Bundle.EMPTY),
+        Bundle.EMPTY,
+    )
 }
 
 /** Routes the player-screen AutoPlay button through the playback service. */

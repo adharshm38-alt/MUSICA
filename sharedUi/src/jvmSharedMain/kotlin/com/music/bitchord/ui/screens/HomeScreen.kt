@@ -2,12 +2,13 @@ package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.components.trackArtSize
 import com.music.bitchord.ui.components.contextClick
+import com.music.bitchord.data.customPlaylistCoverOf
 import com.music.bitchord.ui.AppUi
 import com.music.bitchord.sharedui.resources.*
 import org.jetbrains.compose.resources.painterResource
-import com.music.bitchord.ui.festive.GoldenLogo
 import org.jetbrains.compose.resources.DrawableResource
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -152,12 +153,30 @@ fun HomeScreen(
     listenerName: String? = null,
     onTopPickClick: ((TopPick, String) -> Unit)? = null,
     onTopPickLongPress: ((TopPick) -> Unit)? = null,
+    onRefreshTopPicks: (() -> Unit)? = null,
     /** A Find Your Mood tile, and its name. The shelf is only drawn when this is set. */
     onMoodClick: ((TopPickMood, String) -> Unit)? = null,
     /** Find Your Mood's Show all: every mood and activity. */
     onMoodsShowAll: () -> Unit = {},
     /** Whether the Top Picks and mood artwork may animate — see [LocalArtworkMotion]. */
     artworkMotion: Boolean = true,
+    topPreviewItems: List<com.music.bitchord.data.model.VideoDiscoveryItem> = emptyList(),
+    topPreviewLoading: Boolean = false,
+    onTopPreviewClick: ((com.music.bitchord.data.model.VideoDiscoveryItem) -> Unit)? = null,
+    topPreviewSlot: @Composable (videoId: String, active: Boolean, modifier: Modifier) -> Unit = { _, _, _ -> },
+    topPreviewIsMuted: Boolean = true,
+    onTopPreviewToggleMute: () -> Unit = {},
+    topPreviewIsPlaying: Boolean = false,
+    onTopPreviewTogglePlayPause: () -> Unit = {},
+    topPreviewPositionMs: Long = 0L,
+    topPreviewDurationMs: Long = 30_000L,
+    onTopPreviewMoreClick: ((com.music.bitchord.data.model.VideoDiscoveryItem) -> Unit)? = null,
+    videoDiscoveryItems: List<com.music.bitchord.data.model.VideoDiscoveryItem> = emptyList(),
+    videoDiscoveryLoading: Boolean = false,
+    onVideoDiscoveryClick: (com.music.bitchord.data.model.VideoDiscoveryItem) -> Unit = {},
+    videoDiscoveryPreview: @Composable (videoId: String, active: Boolean, modifier: Modifier) -> Unit = { _, _, _ -> },
+    videoDiscoveryIsMuted: Boolean = true,
+    onVideoDiscoveryToggleMute: (() -> Unit)? = null,
 ) {
     // Top Picks' pictures and motion wait for the feed — see LocalArtworkImages.
     val feedReady = state !is UiState.Loading
@@ -203,6 +222,24 @@ fun HomeScreen(
                     )
                 }
             }
+            if (onTopPreviewClick != null && (topPreviewLoading || topPreviewItems.isNotEmpty())) {
+                item(key = TOP_PREVIEW_SECTION_KEY, contentType = "top_preview_shelf") {
+                    TopPreviewShelf(
+                        items = topPreviewItems,
+                        loading = topPreviewLoading,
+                        homeListState = listState,
+                        onItemClick = onTopPreviewClick,
+                        previewSlot = topPreviewSlot,
+                        isMuted = topPreviewIsMuted,
+                        onToggleMute = onTopPreviewToggleMute,
+                        isPlaying = topPreviewIsPlaying,
+                        onTogglePlayPause = onTopPreviewTogglePlayPause,
+                        positionMs = topPreviewPositionMs,
+                        durationMs = topPreviewDurationMs,
+                        onMoreClick = onTopPreviewMoreClick,
+                    )
+                }
+            }
             if (onTopPickClick != null) {
                 when {
                     !topPicks.isNullOrEmpty() -> item(key = "top-picks") {
@@ -211,6 +248,7 @@ fun HomeScreen(
                             listenerName = listenerName,
                             onClick = onTopPickClick,
                             onLongPress = onTopPickLongPress,
+                            onRefresh = onRefreshTopPicks,
                         )
                     }
                     topPicks == null && topPicksLoading -> topPicksSkeleton()
@@ -232,6 +270,13 @@ fun HomeScreen(
                     }
                     itemsIndexedShelves(
                         shelves = state.data,
+                        homeListState = listState,
+                        videoDiscoveryItems = videoDiscoveryItems,
+                        videoDiscoveryLoading = videoDiscoveryLoading,
+                        onVideoDiscoveryClick = onVideoDiscoveryClick,
+                        videoDiscoveryPreview = videoDiscoveryPreview,
+                        videoDiscoveryIsMuted = videoDiscoveryIsMuted,
+                        onVideoDiscoveryToggleMute = onVideoDiscoveryToggleMute,
                         onMoodClick = onMoodClick,
                         onMoodsShowAll = onMoodsShowAll,
                         onItemClick = onItemClick,
@@ -271,6 +316,13 @@ fun HomeScreen(
 /** Recents mirrors the artist page's top-tracks pager; other shelves use square cards. */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     shelves: List<HomeShelf>,
+    homeListState: LazyListState,
+    videoDiscoveryItems: List<com.music.bitchord.data.model.VideoDiscoveryItem>,
+    videoDiscoveryLoading: Boolean,
+    onVideoDiscoveryClick: (com.music.bitchord.data.model.VideoDiscoveryItem) -> Unit,
+    videoDiscoveryPreview: @Composable (videoId: String, active: Boolean, modifier: Modifier) -> Unit,
+    videoDiscoveryIsMuted: Boolean = true,
+    onVideoDiscoveryToggleMute: (() -> Unit)? = null,
     onItemClick: (ShelfItem, String) -> Unit,
     onItemLongPress: ((ShelfItem) -> Unit)?,
     currentSong: Song?,
@@ -278,18 +330,38 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
     onMoodClick: ((TopPickMood, String) -> Unit)? = null,
     onMoodsShowAll: () -> Unit = {},
 ) {
+    var discoveryInserted = false
     shelves.forEachIndexed { index, shelf ->
-        // Find Your Mood follows the lead shelf, as on Apple Music's Home.
-        if (index == 1 && onMoodClick != null) {
-            item(key = "find-your-mood") { FindYourMoodShelf(onMoodClick, onMoodsShowAll) }
+        if (index == 1) {
+            if (videoDiscoveryLoading || videoDiscoveryItems.isNotEmpty()) {
+                discoveryInserted = true
+                item(key = HOME_VIDEO_DISCOVERY_KEY, contentType = HOME_VIDEO_DISCOVERY_KEY) {
+                    HomeVideoDiscoveryCarousel(
+                        items = videoDiscoveryItems,
+                        loading = videoDiscoveryLoading,
+                        homeListState = homeListState,
+                        onItemClick = onVideoDiscoveryClick,
+                        videoPreviewSlot = videoDiscoveryPreview,
+                        isMuted = videoDiscoveryIsMuted,
+                        onToggleMute = onVideoDiscoveryToggleMute,
+                    )
+                }
+            }
+            // Find Your Mood follows directly below Stage 1 video discovery (when shown).
+            if (onMoodClick != null) {
+                item(key = "find-your-mood", contentType = "find-your-mood") { FindYourMoodShelf(onMoodClick, onMoodsShowAll) }
+            }
         }
-        item(key = shelf.title + index) {
+        val isRecent = shelf.layout == ShelfLayout.LIST ||
+            (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true))
+        item(
+            key = shelf.title + index,
+            contentType = if (isRecent) "recent_shelf" else "regular_shelf"
+        ) {
             val openItem: (ShelfItem) -> Unit = { item -> onItemClick(item, shelf.title) }
             // Listen again and Quick picks are lists on the web player, as
             // Recents is here: one pager for all three.
-            if (shelf.layout == ShelfLayout.LIST ||
-                (index == 0 && shelf.title.equals(RECENTS_TITLE, ignoreCase = true))
-            ) {
+            if (isRecent) {
                 RecentShelf(
                     shelf = shelf,
                     onItemClick = openItem,
@@ -306,6 +378,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
                     isPlaying = isPlaying,
                 )
             }
+        }
+    }
+    if (!discoveryInserted && (videoDiscoveryLoading || videoDiscoveryItems.isNotEmpty())) {
+        item(key = HOME_VIDEO_DISCOVERY_KEY, contentType = HOME_VIDEO_DISCOVERY_KEY) {
+            HomeVideoDiscoveryCarousel(
+                items = videoDiscoveryItems,
+                loading = videoDiscoveryLoading,
+                homeListState = homeListState,
+                onItemClick = onVideoDiscoveryClick,
+                videoPreviewSlot = videoDiscoveryPreview,
+                isMuted = videoDiscoveryIsMuted,
+                onToggleMute = onVideoDiscoveryToggleMute,
+            )
         }
     }
 }
@@ -328,7 +413,11 @@ private fun RecentShelf(
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(shelf.items.chunked(RECENT_TRACKS_PER_COLUMN)) { column ->
+                items(
+                    items = shelf.items.chunked(RECENT_TRACKS_PER_COLUMN),
+                    key = { column -> column.joinToString("-") { it.videoId ?: it.browseId ?: it.title } },
+                    contentType = { "recent_column" },
+                ) { column ->
                     Column(Modifier.width(columnWidth)) {
                         column.forEach { item ->
                             RecentTrackRow(
@@ -417,9 +506,10 @@ fun CompactTrackRow(
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val artModel = remember(thumbnailUrl) { thumbnailUrl.artworkAt(ROW_ART_PX) }
         Box(Modifier.trackArtSize(48.dp, isVideo)) {
             AsyncImage(
-                model = thumbnailUrl.artworkAt(ROW_ART_PX),
+                model = artModel,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -471,24 +561,24 @@ private fun HomeTitle(
     val style = MaterialTheme.typography.displayLarge
     val logoHeight = with(LocalDensity.current) { (style.fontSize * LOGO_TO_FONT).toDp() }
     Column(modifier = modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp)) {
-        val logoModifier = Modifier
-            .padding(bottom = 14.dp)
-            .height(logoHeight)
-            .aspectRatio(LOGO_ASPECT)
-        if (festiveLogo) {
-            GoldenLogo(
-                painter = painterResource(Res.drawable.ic_logo),
-                modifier = logoModifier,
+        val clickableModifier = if (onFestiveLogoClick != null) {
+            Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
                 onClick = onFestiveLogoClick,
             )
         } else {
-            Icon(
-                painter = painterResource(Res.drawable.ic_logo),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
-                modifier = logoModifier,
-            )
+            Modifier
         }
+        Image(
+            painter = painterResource(Res.drawable.musica_symbol),
+            contentDescription = null,
+            modifier = Modifier
+                .padding(bottom = 14.dp)
+                .height(logoHeight)
+                .aspectRatio(LOGO_ASPECT)
+                .then(clickableModifier),
+        )
         // "Listen now" is hidden for now; the wordmark above stays.
         // Text(
         //     text = title,
@@ -501,8 +591,8 @@ private fun HomeTitle(
 /** The wordmark's height against the heading's font size. */
 private const val LOGO_TO_FONT = 0.9f
 
-/** ic_logo's viewport, 730 x 484. */
-private const val LOGO_ASPECT = 730f / 484f
+/** MUSICA cassette symbol viewport, 739 x 417. */
+private const val LOGO_ASPECT = 739f / 417f
 
 /**
  * Shared by the home feed, Explore and Library so headings line up across tabs.
@@ -745,8 +835,12 @@ internal fun Shelf(
             contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            leadingCard?.let { card -> item(key = "leading") { card() } }
-            items(shelf.items) { item ->
+            leadingCard?.let { card -> item(key = "leading", contentType = "leading_card") { card() } }
+            items(
+                items = shelf.items,
+                key = { it.videoId ?: it.browseId ?: it.title },
+                contentType = { if (shelf.layout == ShelfLayout.VIDEO) "video_card" else "shelf_card" },
+            ) { item ->
                 if (shelf.layout == ShelfLayout.VIDEO) {
                     VideoShelfCard(
                         item = item,
@@ -996,8 +1090,11 @@ internal fun ShelfCard(
                         .thumbnailBorder(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                 ) {
+                    val customCovers by AppUi.host.customPlaylistCovers.collectAsStateWithLifecycle()
+                    val effectiveThumbnail = customCovers.customPlaylistCoverOf(item.browseId) ?: item.thumbnailUrl
+                    val artModel = remember(effectiveThumbnail) { effectiveThumbnail.artworkAt(CARD_ART_PX) }
                     AsyncImage(
-                        model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                        model = artModel,
                         contentDescription = null,
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

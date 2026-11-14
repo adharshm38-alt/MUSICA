@@ -63,12 +63,16 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.bitchord.R
+import com.music.bitchord.data.PlaylistCoverStore
+import com.music.bitchord.data.customPlaylistCoverOf
 import com.music.bitchord.data.model.PlaylistPrivacy
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.Song
@@ -286,6 +290,8 @@ private fun SheetTopBar(
 
 @Composable
 private fun PlaylistRow(playlist: UserPlaylist, selected: Boolean, onClick: () -> Unit) {
+    val customCovers by PlaylistCoverStore.covers.collectAsStateWithLifecycle()
+    val coverUrl = customCovers.customPlaylistCoverOf(playlist.browseId) ?: playlist.thumbnailUrl
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -294,8 +300,9 @@ private fun PlaylistRow(playlist: UserPlaylist, selected: Boolean, onClick: () -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
-            model = playlist.thumbnailUrl.artworkAt(ROW_ART_PX),
+            model = coverUrl.artworkAt(ROW_ART_PX),
             contentDescription = null,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(7.dp))

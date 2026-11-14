@@ -56,24 +56,28 @@ object SongInfoRepository {
         install(HttpTimeout) { requestTimeoutMillis = 15_000 }
     }
 
+    internal suspend fun fetchWatchHtml(videoId: String): String {
+        val response = client.get("https://www.youtube.com/watch") {
+            header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+            // Without a consent answer an EU request is redirected to
+            // consent.youtube.com, whose page has no player response.
+            // SOCS=CAI is "reject all": it answers the question and
+            // opts into nothing.
+            header("Cookie", "SOCS=CAI")
+            parameter("v", videoId)
+            parameter("hl", Innertube.currentLanguage)
+        }
+        check(response.status.value == 200)
+        return response.bodyAsText()
+    }
+
     suspend fun load(song: Song): SongInfo = withContext(Dispatchers.IO) {
         if (song.localUri != null || !Regex("[A-Za-z0-9_-]{11}").matches(song.videoId)) {
             return@withContext SongInfo(album = song.albumName)
         }
         val statistics = async {
             attempt {
-                val response = client.get("https://www.youtube.com/watch") {
-                    header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-                    // Without a consent answer an EU request is redirected to
-                    // consent.youtube.com, whose page has no player response.
-                    // SOCS=CAI is "reject all": it answers the question and
-                    // opts into nothing.
-                    header("Cookie", "SOCS=CAI")
-                    parameter("v", song.videoId)
-                    parameter("hl", Innertube.currentLanguage)
-                }
-                check(response.status.value == 200)
-                SongInfoParser.parse(response.bodyAsText(), song.videoId)
+                SongInfoParser.parse(fetchWatchHtml(song.videoId), song.videoId)
             }
         }
         var album = song.albumName
@@ -149,7 +153,7 @@ internal object SongInfoParser {
     }
 
     /** Balanced JSON extraction tolerates braces inside titles and trailing script statements. */
-    private fun extract(script: String, name: String): JsonObject? {
+    internal fun extract(script: String, name: String): JsonObject? {
         val assignment = Regex("(?:var\\s+)?${name}\\s*=\\s*").find(script) ?: return null
         val start = assignment.range.last + 1
         if (script.getOrNull(start) != '{') return null
@@ -173,15 +177,15 @@ internal object SongInfoParser {
         return null
     }
 
-    private fun JsonObject.obj(key: String) = this[key] as? JsonObject ?: JsonObject(emptyMap())
-    private fun JsonObject.str(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull
+    internal fun JsonObject.obj(key: String) = this[key] as? JsonObject ?: JsonObject(emptyMap())
+    internal fun JsonObject.str(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull
     private fun String.withCount(): String? = takeIf { it.any(Char::isDigit) }
-    private fun JsonElement.text(): String? = (this as? JsonObject)?.let {
+    internal fun JsonElement.text(): String? = (this as? JsonObject)?.let {
         it.str("simpleText") ?: (it["runs"] as? JsonArray)?.joinToString("") { run ->
             (run as? JsonObject)?.str("text").orEmpty()
         }
     }?.takeIf { it.isNotBlank() }
-    private fun JsonElement.find(key: String): List<JsonObject> = when (this) {
+    internal fun JsonElement.find(key: String): List<JsonObject> = when (this) {
         is JsonObject -> listOfNotNull(this[key] as? JsonObject) + values.flatMap { it.find(key) }
         is JsonArray -> flatMap { it.find(key) }
         else -> emptyList()

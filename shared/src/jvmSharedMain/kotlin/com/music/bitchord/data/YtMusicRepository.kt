@@ -488,6 +488,11 @@ object YtMusicRepository {
                 ?.filterIsInstance<SearchResult.Track>()
                 ?.map { it.song }
                 .orEmpty()
+            OfficialMusicVideoRanker.best(candidates, target)?.let { match ->
+                Log.d(TAG, "official video match: '${song.title}' -> '${match.title}' by '${match.artist}' ($query)")
+                videoVersionCache[song.videoId] = match
+                return match
+            }
             TrackMatcher.best(candidates, target)?.let { match ->
                 Log.d(TAG, "video switch: '${song.title}' -> '${match.title}' ($query)")
                 videoVersionCache[song.videoId] = match

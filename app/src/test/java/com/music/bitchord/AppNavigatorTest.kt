@@ -127,4 +127,29 @@ class AppNavigatorTest {
         assertTrue(navigator.pop())
         assertTrue(navigator.visibleRoute() is AppRoute.LibraryShowAll)
     }
+
+    @Test
+    fun extraChangesAndBackgroundsNavigateAndPopBackToSettings() {
+        navigator.push(AppRoute.Settings)
+        navigator.push(AppRoute.ExtraChanges)
+        assertEquals(AppRoute.ExtraChanges, navigator.visibleRoute())
+
+        navigator.push(AppRoute.AppLogos)
+        assertEquals(AppRoute.AppLogos, navigator.visibleRoute())
+
+        assertTrue(navigator.pop())
+        assertEquals(AppRoute.ExtraChanges, navigator.visibleRoute())
+
+        navigator.push(AppRoute.Backgrounds)
+        assertEquals(AppRoute.Backgrounds, navigator.visibleRoute())
+
+        assertTrue(navigator.pop())
+        assertEquals(AppRoute.ExtraChanges, navigator.visibleRoute())
+
+        assertTrue(navigator.pop())
+        assertEquals(AppRoute.Settings, navigator.visibleRoute())
+
+        assertTrue(navigator.pop())
+        assertNull(navigator.visibleRoute())
+    }
 }

@@ -1,2 +1,6 @@
 server
 *.exe
+.env
+node_modules/
+.data/
+

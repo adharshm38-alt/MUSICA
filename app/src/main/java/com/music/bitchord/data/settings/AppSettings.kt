@@ -411,6 +411,8 @@ object AppSettings {
     val playbackSpeed = MutableStateFlow(1.0f)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
     val appFont = MutableStateFlow(AppFont.DEFAULT)
+    val customWallpaper = MutableStateFlow(AppWallpaper.DEFAULT_BLACK)
+    val appLogo = MutableStateFlow(AppLogo.DEFAULT)
 
     /** Keep playing similar music once the queue runs out. */
     val autoplay = MutableStateFlow(true)
@@ -498,6 +500,9 @@ object AppSettings {
 
     /** Real backdrop-sampled glass (blur, lens refraction) on the floating nav bar, Android 12+ only. */
     val liquidGlass = MutableStateFlow(false)
+
+    /** Whether the floating mini player is visible during playback. True by default. */
+    val miniPlayerEnabled = MutableStateFlow(true)
 
     /**
      * Frosts the glass instead of refracting it, for phones the lens shader is too
@@ -935,6 +940,7 @@ object AppSettings {
         prefs = context.getSharedPreferences("bitchord_settings", Context.MODE_PRIVATE)
         this.authStore = authStore
         com.music.bitchord.data.spotify.LocalPlaylistStore.init(context)
+        com.music.bitchord.data.PlaylistCoverStore.init(context)
         com.music.bitchord.data.OfflinePlaylists.init(
             context,
             likedTitle = context.getString(com.music.bitchord.R.string.auto_liked),
@@ -1014,6 +1020,10 @@ object AppSettings {
         appFont.value = runCatching {
             AppFont.valueOf(prefs.getString(KEY_APP_FONT, null) ?: AppFont.DEFAULT.name)
         }.getOrDefault(AppFont.DEFAULT)
+        val savedWallpaper = prefs.getString(KEY_CUSTOM_WALLPAPER, AppWallpaper.DEFAULT_BLACK.id)
+        customWallpaper.value = AppWallpaper.fromId(savedWallpaper)
+        val savedLogo = prefs.getString(KEY_APP_LOGO, AppLogo.DEFAULT.id)
+        appLogo.value = AppLogo.fromId(savedLogo)
         autoplay.value = prefs.getBoolean(KEY_AUTOPLAY, true)
         shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
@@ -1044,6 +1054,7 @@ object AppSettings {
         reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
+        miniPlayerEnabled.value = prefs.getBoolean(KEY_MINI_PLAYER_ENABLED, true)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
         progressiveBlur.value = prefs.getBoolean(KEY_PROGRESSIVE_BLUR, false)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
@@ -1411,6 +1422,16 @@ object AppSettings {
         prefs.edit().putString(KEY_APP_FONT, value.name).apply()
     }
 
+    fun setCustomWallpaper(value: AppWallpaper) {
+        customWallpaper.value = value
+        prefs.edit().putString(KEY_CUSTOM_WALLPAPER, value.id).apply()
+    }
+
+    fun setAppLogo(value: AppLogo) {
+        appLogo.value = value
+        prefs.edit().putString(KEY_APP_LOGO, value.id).apply()
+    }
+
     fun setReduceAnimation(value: Boolean) {
         reduceAnimation.value = value
         if (value) highPerformanceMode.value = false
@@ -1516,6 +1537,11 @@ object AppSettings {
     fun setLiquidGlass(value: Boolean) {
         liquidGlass.value = value
         prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
+    }
+
+    fun setMiniPlayerEnabled(value: Boolean) {
+        miniPlayerEnabled.value = value
+        prefs.edit().putBoolean(KEY_MINI_PLAYER_ENABLED, value).apply()
     }
 
     fun setGlassPerformance(value: Boolean) {
@@ -2279,6 +2305,8 @@ object AppSettings {
     private const val KEY_SPEED = "playback_speed"
     private const val KEY_THEME = "theme_mode"
     private const val KEY_APP_FONT = "app_font"
+    private const val KEY_CUSTOM_WALLPAPER = "custom_wallpaper"
+    private const val KEY_APP_LOGO = "app_logo"
     private const val KEY_AUTOPLAY = "autoplay"
     private const val KEY_SHUFFLE_ENABLED = "shuffle_enabled"
     private const val KEY_REPEAT_MODE = "repeat_mode"
@@ -2307,6 +2335,7 @@ object AppSettings {
     private const val KEY_REDUCE_BLUR = "reduce_dynamic_blur"
     private const val KEY_DISABLE_BLEND_EFFECTS = "disable_blend_effects"
     private const val KEY_LIQUID_GLASS = "liquid_glass"
+    private const val KEY_MINI_PLAYER_ENABLED = "mini_player_enabled"
     private const val KEY_GLASS_PERFORMANCE = "glass_performance"
     private const val KEY_PROGRESSIVE_BLUR = "progressive_blur"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"

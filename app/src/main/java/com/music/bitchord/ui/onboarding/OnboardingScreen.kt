@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource as androidPainterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -72,7 +73,7 @@ import androidx.compose.ui.unit.sp
 import com.music.bitchord.R
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.ic_google_g
-import com.music.bitchord.sharedui.resources.ic_logo
+import com.music.bitchord.sharedui.resources.ic_proton_mail
 import org.jetbrains.compose.resources.painterResource
 import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.player.MeshGradientBackground
@@ -100,6 +101,8 @@ fun OnboardingScreen(
     onNameChosen: (String) -> Unit,
     /** Opens the Google sign-in. The caller finishes onboarding once it lands. */
     onSignIn: () -> Unit,
+    /** Opens the Proton Mail sign-in flow. */
+    onSignInProton: () -> Unit,
     onFinish: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -180,6 +183,7 @@ fun OnboardingScreen(
                     else -> ConnectPage(
                         onBack = { page = PAGE_NAME },
                         onSignIn = onSignIn,
+                        onSignInProton = onSignInProton,
                         onSkip = onFinish,
                     )
                 }
@@ -220,9 +224,9 @@ private fun ColumnScope.NamePage(
         Column {
             Spacer(Modifier.height(56.dp))
             Image(
-                painter = painterResource(Res.drawable.ic_logo),
+                painter = androidPainterResource(R.drawable.ic_onboarding_logo),
                 contentDescription = null,
-                modifier = Modifier.size(width = 46.dp, height = 30.dp),
+                modifier = Modifier.size(48.dp),
             )
         }
     }
@@ -261,6 +265,7 @@ private fun ColumnScope.NamePage(
 private fun ColumnScope.ConnectPage(
     onBack: () -> Unit,
     onSignIn: () -> Unit,
+    onSignInProton: () -> Unit,
     onSkip: () -> Unit,
 ) {
     Spacer(Modifier.height(16.dp))
@@ -285,6 +290,19 @@ private fun ColumnScope.ConnectPage(
         leading = {
             Image(
                 painter = painterResource(Res.drawable.ic_google_g),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+        },
+    )
+    Spacer(Modifier.height(12.dp))
+    PillButton(
+        label = stringResource(R.string.onboarding_sign_in_proton),
+        onClick = onSignInProton,
+        primary = true,
+        leading = {
+            Image(
+                painter = painterResource(Res.drawable.ic_proton_mail),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
             )

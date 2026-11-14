@@ -65,11 +65,21 @@ val addonAuthServer: String = (
         ?: "https://bitchord-auth.kushagrasingh.in"
     ).trim().trimEnd('/')
 
+/*
+ * MUSICA Proton Mail OTP & Cloud User Data backend. Overridable in local.properties
+ * or environment variables for staging / Render deployment.
+ */
+val protonAuthServer: String = (
+    localProps.getProperty("PROTON_AUTH_SERVER")
+        ?: System.getenv("PROTON_AUTH_SERVER")
+        ?: "http://127.0.0.1:3001"
+    ).trim().trimEnd('/')
+
 // See the root build.gradle.kts: one version for the phone and its watch app.
 val betaSuffix = rootProject.extra["bitchordBetaSuffix"] as String
 
 android {
-    namespace = "com.music.bitchord"
+       namespace = "com.music.bitchord"
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
@@ -97,17 +107,26 @@ android {
             "ADDON_AUTH_URL",
             "\"${addonAuthServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
         )
+        buildConfigField(
+            "String",
+            "PROTON_AUTH_SERVER",
+            "\"${protonAuthServer.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
+        )
         // Which release assets are this app's: the phone and TV APKs ship in
         // the same GitHub release, told apart by file name. See
         // AppUpdateChecker.apkAssetUrl.
-        buildConfigField("String", "UPDATE_APK_PREFIX", "\"BitChord-\"")
+        buildConfigField("String", "UPDATE_APK_PREFIX", "\"MUSICA-\"")
+
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
     }
 
     splits {
         abi {
             isEnable = true
             reset()
-            include("armeabi-v7a", "arm64-v8a", "x86_64")
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             isUniversalApk = true
         }
     }
@@ -133,11 +152,12 @@ android {
         create("dev") {
             dimension = "env"
             applicationId = "com.dev.bitchord"
-            resValue("string", "app_name", "BitChord Dev")
+            resValue("string", "app_name", "MUSICA")
         }
         create("prod") {
             dimension = "env"
             // Matches defaultConfig — this is the package already shipped/installed.
+            resValue("string", "app_name", "MUSICA")
         }
     }
 

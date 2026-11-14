@@ -270,7 +270,7 @@ private fun LazyListScope.idleContent(
     if (history.isEmpty()) {
         item(key = "idleEmpty") {
             TvEmptyState(
-                title = "Search BitChord",
+                title = "Search MUSICA",
                 message = "Find songs, albums, artists and playlists.",
                 modifier = Modifier.height(240.dp),
             )

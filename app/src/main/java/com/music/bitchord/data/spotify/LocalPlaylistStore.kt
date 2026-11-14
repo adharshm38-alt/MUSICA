@@ -76,6 +76,9 @@ object LocalPlaylistStore {
         val updated = _playlists.value.filterNot { it.id == id || it.browseId == id || it.id == id.removePrefix("local:playlist:") }
         _playlists.value = updated
         persist(updated)
+        com.music.bitchord.data.PlaylistCoverStore.resetCustomCover(
+            if (id.startsWith("local:playlist:")) id else "local:playlist:$id",
+        )
     }
 
     fun renamePlaylist(id: String, newTitle: String) {

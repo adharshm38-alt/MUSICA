@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.data.PlaylistCoverStore
+import com.music.bitchord.data.customPlaylistCoverOf
 import com.music.bitchord.ui.components.trackArtSize
 import android.os.Build
 import com.music.bitchord.R
@@ -433,8 +435,13 @@ fun DetailScreen(
             if (signature != null) return@LaunchedEffect
         }
     }
+    val customCovers by PlaylistCoverStore.covers.collectAsStateWithLifecycle()
+    val effectiveThumbnailUrl = customCovers.customPlaylistCoverOf(page.browseId) ?: page.thumbnailUrl
+    val displayPage = remember(page, effectiveThumbnailUrl) {
+        if (effectiveThumbnailUrl == page.thumbnailUrl) page else page.copy(thumbnailUrl = effectiveThumbnailUrl)
+    }
     val palette = rememberArtworkPalette(
-        imageUrl = appleArt?.heroUrl ?: page.thumbnailUrl,
+        imageUrl = appleArt?.heroUrl ?: displayPage.thumbnailUrl,
         keyColors = appleArt?.keyColors(),
     )
 
@@ -585,10 +592,10 @@ fun DetailScreen(
                 ) {
             item(key = "header") {
                 if (isArtist) {
-                    ArtistHeader(page = page, palette = palette, artHeight = artHeight, appleArt = appleArt, signature = signature)
+                    ArtistHeader(page = displayPage, palette = palette, artHeight = artHeight, appleArt = appleArt, signature = signature)
                 } else {
                     ReleaseHeader(
-                        page = page,
+                        page = displayPage,
                         palette = palette,
                         sleeveSize = sleeveSize,
                         fullBleed = fullBleedSleeve,
@@ -773,6 +780,7 @@ fun DetailScreen(
                     itemsIndexed(
                         items = matches,
                         key = { _, entry -> "${entry.index}_${entry.value.videoId}" },
+                        contentType = { _, _ -> "detail_song_row" },
                     ) { position, entry ->
                         val song = entry.value
                         val isCurrent = isCurrentRow(song)
@@ -819,8 +827,9 @@ fun DetailScreen(
                 }
                 val isSuggestedCurrent = playingRowMatcher(suggested, currentSong)
                 itemsIndexed(
-                    suggested,
+                    items = suggested,
                     key = { _, song -> "suggested-${song.videoId}" },
+                    contentType = { _, _ -> "suggested_song_row" },
                 ) { index, song ->
                     SuggestedSongRow(
                         song = song,

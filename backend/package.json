@@ -1,0 +1,17 @@
+{
+  "name": "musica-backend",
+  "version": "1.0.0",
+  "description": "MUSICA Proton Mail OTP authentication and user cloud-data service",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/server.test.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.10.0"
+  }
+}

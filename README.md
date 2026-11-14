@@ -1,156 +1,203 @@
 <div align="center">
 
 <br/>
-<br/>
 
-<img src="Logo.png" alt="BitChord app icon" width="200" />
+<img src="docs/assets/musica_logo.png" alt="MUSICA App Icon" width="160" />
 
-# BitChord
+# MUSICA
 
-### Aesthetic YouTube Music Client
-
-<br/>
-
-[![Latest release](https://img.shields.io/github/v/release/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![License](https://img.shields.io/github/license/kushagrasinghx/BitChord?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/blob/main/LICENSE)
-[![Downloads](https://img.shields.io/github/downloads/kushagrasinghx/BitChord/total?style=for-the-badge&labelColor=0d1117)](https://github.com/kushagrasinghx/BitChord/releases)
-[![Listening now](https://api.bitchord.kushagrasingh.in/api/stats/live/badge.svg)](https://api.bitchord.kushagrasingh.in/api/stats/live)
+### A modern music streaming and listening experience with a clean, immersive interface.
 
 <br/>
 
-[**Download**](#download) · [**Features**](#features) · [**Contributing**](#contributing) · [**Support**](#support) · [**Disclaimer**](#disclaimer)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-white?style=for-the-badge&labelColor=141416)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android_8.0+-white?style=for-the-badge&labelColor=141416&logo=android&logoColor=white)](#requirements)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.20-white?style=for-the-badge&labelColor=141416&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Compose](https://img.shields.io/badge/Jetpack-Compose-white?style=for-the-badge&labelColor=141416)](https://developer.android.com/jetpack/compose)
 
 <br/>
 
-<a href="https://fmhy.net/mobile#youtube-music" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/available/fmhy/cozy.svg" alt="Featured on FMHY" height="55"/></a>
-<a href="https://trendshift.io/repositories/177639?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-177639" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/177639" alt="kushagrasinghx%2FBitChord | Trendshift" width="250" height="55"/></a>
-
-</div>
-
-> [!IMPORTANT]
-> BitChord is not affiliated with, endorsed by, or connected to YouTube or Google in any way. Use it at your own discretion.
-
----
-
-<div align="center">
-
-<img src="Banner.png" alt="BitChord banner" width="100%" />
-
-<h1><a id="features"></a>Features</h1>
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-
-#### Playback
-- **Search, browse and play** anything available on YouTube Music.
-- **Hi-Res lossless audio** — FLAC/ALAC from a configured module source, with YouTube Music as fallback.
-- **Gapless playback with true crossfade**, adjustable 0–12s.
-- **Automix [Beta]** — DJ-style transitions with beat-matching and tempo-stretching.
-- **Offline downloads** — save tracks with embedded metadata.
-- **Local music library** integration.
-- **Background playback** via a proper foreground media session.
-- **Apple-like lyrics animation** — credit to [binimum](https://github.com/binimum/am-lyrics).
-
-#### Connectivity & Accounts
-- **Sign in with your Google account** for personalized content.
-- **Spotify integration** — connect your account to play your playlists and Liked Songs.
-- **Discord Rich Presence** — in-app login, live track/artist/album and progress.
-- **Scrobbling** to Last.fm and ListenBrainz.
-- **Pluggable sources** — add, edit, test and health-check module sources.
-
-    </td>
-    <td width="50%" valign="top">
-
-#### Experience
-- **Animated album canvas** — motion artwork on the now-playing screen.
-- **Word-synced lyrics** — word/syllable-level highlighting from multiple sources.
-- **Lyrics providers** — credit to [lrc.red](https://lrc.red), [BiniLyrics](https://github.com/binimum), [BetterLyrics](https://github.com/better-lyrics/better-lyrics), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), [Unison](https://unison.boidu.dev), [Megalobiz](https://www.megalobiz.com), [KuGou](https://www.kugou.com), [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com) and [Genius](https://genius.com).
-- **Dynamic, artwork-driven theming** — Material palette extracted from album art.
-- **Frosted-glass UI** — Telegram-style translucent bars via Haze, Material 3 theming.
-
-#### Controls & Tweaks
-- **Per-network audio quality** — separate quality ceilings for Wi-Fi and mobile data.
-- **Playback speed control** (0.5×–2.0×) and **skip silence**.
-- **Sleep timer** — fixed presets or "stop after this track".
-- **System equalizer** integration.
-- **Bit-perfect USB exclusive output** — sends lossless tracks to a USB DAC unchanged, at each track's own rate and bit depth. Thanks to [Mornye](https://github.com/mornyeapp/Mornye) for the reference.
-- **Stats for nerds** — codec, bit depth, sample rate, and more on the now-playing screen.
-
-    </td>
-  </tr>
-</table>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="download"></a>Download</h1>
-
-<a href="https://github.com/kushagrasinghx/BitChord/releases" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/supported/android/cozy.svg" alt="Download for Android" height="55"/></a>
-
-Grab the latest signed APK from the [Releases](https://github.com/kushagrasinghx/BitChord/releases) page. Sideloading requires enabling "Install unknown apps" for whichever app you download it with.
-
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="contributing"></a>Contributing</h1>
-
-We welcome contributions to BitChord! Please review our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a Pull Request.
-
-[**Contributing Guide**](CONTRIBUTING.md) · [**Code of Conduct**](CODE_OF_CONDUCT.md) · [**Maintainers**](MAINTAINERS.md) · [**Additional Docs**](ADDITIONAL.md)
-
-### Thanks to all contributors ❤
-
-<a href="https://github.com/kushagrasinghx/BitChord/graphs/contributors">
-  <img src="https://raw.githubusercontent.com/kushagrasinghx/BitChord/contributors/contributors.svg" />
-</a>
-
-</div>
-
----
-
-<div align="center">
-
-<h1><a id="support"></a>Support</h1>
-
-BitChord is free and always will be — if it's earned a spot in your rotation, you can chip in here:
-
-<a href="https://ko-fi.com/kushagrasinghx" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/kofi-singular-alt/cozy.svg" alt="Support me on Ko-fi" height="55"/></a>
-<a href="https://paypal.me/kuxhagrasingh" target="_blank" rel="noopener noreferrer"><img src="https://cdn.jsdelivr.net/gh/JMcrafter26/badges@main/src/assets/donate/paypal-plural/cozy.svg" alt="Support us on PayPal" height="55"/></a>
+[**About**](#about) · [**Features**](#features) · [**Screenshots**](#screenshots) · [**Download**](#download) · [**Building & Development**](#building--development) · [**Credits**](#credits-and-acknowledgements) · [**License**](#license)
 
 <br/>
-<img src="upi_support.jpg" alt="UPI Support" width="250" />
+
+<img src="docs/assets/musica_banner.png" alt="MUSICA Banner" width="100%" />
 
 </div>
 
 ---
 
+## About
+
+**MUSICA** is a modern music application designed around a clean listening experience, immersive visuals, powerful music discovery and convenient playback controls. Built natively for Android using Jetpack Compose, Kotlin Multiplatform, and Media3/ExoPlayer, MUSICA pairs a minimalist dark aesthetic with deep audio configuration, rich real-time lyrics, synced party playback, and extensive personalization.
+
+---
+
+## Features
+
+### 🔍 Music Discovery & Search
+- **Instant Global Search**: Search tracks, artists, albums, playlists, and music videos powered by YouTube Music.
+- **Top Preview for You**: Full-screen short-video discovery feed with smooth 60-second video previews and immediate audio player handoff.
+- **Moods & Genres**: Dedicated discovery grids for exploring curated vibes, activities, and trending releases.
+
+### 🎵 Audio Engine & Playback Controls
+- **Foreground Playback Service**: Uninterrupted background audio with full lockscreen, system notification, and Bluetooth media controls.
+- **True Gapless & Crossfade**: Smooth track transitions with customizable 0–12 second crossfade.
+- **Speed & Silence Trimming**: Fine-grained playback rate adjustments (0.5×–2.0×) and automatic silence skipping.
+- **Sleep Timer**: Turn off playback after specified durations or seamlessly at the end of the current track.
+- **Advanced Queue**: Drag-and-drop reordering, swipe-to-play-next, swipe-to-queue, and full playback history.
+
+### ✨ Immersive Now-Playing & Lyrics
+- **Dynamic Blurred Artwork**: Fluid liquid-glass UI with artwork-driven dynamic background illumination.
+- **Word-Synced & Line-Synced Lyrics**: Real-time karaoke-style word highlighting and synchronized scrolling from multiple lyrics providers.
+- **On-Demand Lyrics Translation**: Dual-language translation support with timing projection.
+- **Stats for Nerds**: Inspect live audio metrics including active codec, bitrate, sample rate, bit depth, and buffer health.
+
+### 📚 Library & Playlists
+- **Custom Local Playlists**: Create, reorder, and organize custom playlists with unique artwork.
+- **Spotify Integration**: Import Spotify playlists and sync liked songs directly into your MUSICA library.
+- **Local Music Storage**: Play music files stored on device storage with embedded tags and album covers.
+- **Offline Downloads**: Save tracks with embedded high-resolution metadata for offline playback.
+
+### 🎛️ Audio Controls & Bit-Perfect Output
+- **Hardware Equalizer**: Built-in multi-band parametric equalizer with custom curves and genre presets.
+- **Bit-Perfect USB Exclusive Audio**: Direct USB DAC bit-perfect output delivering unmodified bit depth and native sample rates.
+- **Dolby Atmos Decoding**: Hardware-accelerated spatial audio decoding on supported devices.
+- **Direct Source Stream**: Pluggable high-fidelity and lossless audio stream resolution.
+
+### 🎨 Customization & Personalization
+- **Shared Backgrounds**: Select from curated aesthetic wallpapers (e.g. Mount Fuji, Forest Canopy, Anime Art) applied consistently across all screens, with pure black default fallback.
+- **App Logos**: Switch among 6 launcher icons (Default Red, Pure Black, Pastel Lavender, Mint Green, Sky Blue, Pink) using Android activity-alias switching.
+
+### 🌐 Integrations & Rich Presence
+- **Discord Rich Presence**: Share current track, artist, audio quality format, and live progress on Discord with official "Listening to MUSICA" activity.
+- **Listen Together (Party Mode)**: Real-time synchronized music playback with friends via low-latency WebSocket synchronization.
+- **Scrobbling**: Automatic scrobbling to Last.fm and ListenBrainz.
+- **Wear OS Companion**: Control playback, browse playlists, and adjust volume right from your smartwatch.
+
+---
+
+## Screenshots
+
 <div align="center">
 
-<h1><a id="disclaimer"></a>Disclaimer & Legal Notice</h1>
+| Home (Default) | Now Playing | Custom Wallpaper |
+| :---: | :---: | :---: |
+| <img src="docs/assets/screenshots/home_default.png" width="280" alt="Home Screen" /> | <img src="docs/assets/screenshots/now_playing.png" width="280" alt="Now Playing Screen" /> | <img src="docs/assets/screenshots/custom_wallpaper.png" width="280" alt="Custom Wallpaper Screen" /> |
 
-BitChord is an independent, community-driven third-party audio player and client. It is **not** associated with Google LLC, YouTube Music, Deezer, Telegram, or any of their parent companies.
+<br/>
 
-* **No Media Hosting:** BitChord does not host, upload, or store copyrighted music files. It operates strictly as an interface to scan local device storage or stream media directly from public, public-facing, or user-authenticated APIs.
-* **Fair Use & API Usage:** This software is created solely for personal research, educational, and fair-use purposes. The user is entirely responsible for ensuring their usage aligns with their local copyright laws and YouTube Terms of Service.
-* **No Ad-Blocking Guarantee:** While BitChord focuses on providing a clean listening environment, it does not guarantee permanent bypasses or modifications to commercial third-party platform conditions.
-* **Copyleft:** BitChord is free software under the GPLv3. The license does not let anyone forbid others from selling or redistributing copies, but any distribution must come with the Corresponding Source under the same license.
+| Video Discovery | Extra Changes & Personalization | Discord Rich Presence |
+| :---: | :---: | :---: |
+| <img src="docs/assets/screenshots/video_discovery.png" width="280" alt="Video Discovery" /> | <img src="docs/assets/screenshots/extra_changes.png" width="280" alt="Extra Changes" /> | <img src="docs/assets/screenshots/discord_rich_presence.png" width="280" alt="Discord Rich Presence" /> |
 
 </div>
 
 ---
 
-<div align="center">
+## Download
 
-<h1><a id="license"></a>License</h1>
+Official signed APK releases will be hosted directly on the [Releases](https://github.com/adharshm38-alt/MUSICA/releases) page.
 
-This project is licensed under the **GNU General Public License v3.0 (GPLv3)**. See the [LICENSE](LICENSE) file for details.
+> [!NOTE]
+> Official v1.0.0 APK release binaries are currently in preparation. To run MUSICA on your device today, follow the build instructions below.
 
-</div>
+### Requirements
+- **Device**: Android 8.0 (API level 26) or higher.
+- **Architecture**: ARM64 (`arm64-v8a`), ARMv7 (`armeabi-v7a`), x86, or x86_64.
+- Sideloading requires enabling *"Install unknown apps"* in your Android security settings.
+
+---
+
+## Building & Development
+
+### Prerequisites
+- **JDK**: Java Development Kit 17 (Eclipse Temurin 17 recommended).
+- **Android SDK**: `compileSdk = 36/37`, `minSdk = 26`.
+- **Android NDK & CMake**: CMake 3.22.1+ and Android NDK (required for C/C++ audio components in `app/src/main/cpp`).
+- **Android Studio**: Android Studio Hedgehog / Ladybug or newer.
+- **Node.js**: Node 20+ (for `backend/` auth and sync service).
+- **Go**: Go 1.22+ (for `backend/` Listen Together party server).
+
+### Clone Repository
+
+```bash
+git clone https://github.com/adharshm38-alt/MUSICA.git
+cd MUSICA
+```
+
+### Build Android App
+
+To build a debug APK with production endpoints:
+
+```bash
+# Linux / macOS
+./gradlew :app:assembleProdDebug
+
+# Windows PowerShell
+.\gradlew.bat :app:assembleProdDebug
+```
+
+The compiled APK will be located at:
+`app/build/outputs/apk/prod/debug/app-prod-arm64-v8a-debug.apk`
+
+To build the TV application:
+
+```bash
+./gradlew :tv:assembleProdDebug
+```
+
+### Run Tests
+
+```bash
+./gradlew :app:testProdDebugUnitTest
+```
+
+### Backend Services
+
+The project includes two backend modules in `backend/`:
+
+1. **Authentication & Cloud Data Service** (Node.js + Express):
+   ```bash
+   cd backend
+   npm install
+   npm start
+   ```
+
+2. **Listen Together Party Server** (Go + WebSockets):
+   ```bash
+   cd backend
+   go run .
+   ```
+
+---
+
+## Credits and Acknowledgements
+
+MUSICA builds upon and extends open-source work from the audio and Android development communities:
+
+- **BitChord**: Base application architecture and design foundation under GPL-3.0.
+- **NewPipeExtractor**: Robust YouTube Music extraction and stream parsing.
+- **AndroidX Media3 / ExoPlayer**: Production-grade media playback foundation.
+- **Jetpack Compose & Kotlin Multiplatform**: Modern, declarative UI framework.
+- **Haze (Chris Banes)**: Translucent frosted glass effect components.
+- **Lyrics Providers**: [LRCLIB](https://lrclib.net), [Musixmatch](https://www.musixmatch.com), [Genius](https://genius.com), [BiniLyrics](https://github.com/binimum), [PaxSenix](https://lyrics.paxsenix.org), [LyricsPlus](https://github.com/ibratabian17/YouLyPlus), [SimpMusic](https://github.com/maxrave-dev/SimpMusic), and [lrc.red](https://lrc.red).
+- **Mornye**: Reference implementation for Android bit-perfect USB audio routing.
+- **KizzyRPC**: Discord Rich Presence Android implementation.
+
+---
+
+## Disclaimer
+
+MUSICA is an independent third-party client and media player. It is not affiliated with, endorsed by, or connected to Google LLC, YouTube, YouTube Music, Discord Inc., Spotify AB, or Proton AG.
+
+- **No Media Hosting**: MUSICA does not host, upload, or store copyrighted audio or video media. All playback is requested directly from public or user-authenticated platform endpoints.
+- **Fair Use**: This software is provided for personal, educational, and research use. Users are responsible for ensuring their usage complies with relevant local regulations and third-party terms of service.
+
+---
+
+## License
+
+MUSICA is free software licensed under the **GNU General Public License v3.0 (GPLv3)**.
+
+You may copy, distribute and modify the software under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See the [LICENSE](LICENSE) file for complete terms.

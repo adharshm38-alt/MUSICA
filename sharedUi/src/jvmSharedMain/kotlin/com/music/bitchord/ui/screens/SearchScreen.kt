@@ -370,6 +370,13 @@ fun SearchScreen(
                                     is SearchResult.Browse -> "browse_${row.item.browseId}_$index"
                                 }
                             },
+                            contentType = { _, row ->
+                                when (row) {
+                                    is SearchResult.TopTrack -> "top_track"
+                                    is SearchResult.Track -> "track"
+                                    is SearchResult.Browse -> "browse"
+                                }
+                            },
                         ) { index, row ->
                             when (row) {
                                 is SearchResult.TopTrack -> Unit
@@ -705,13 +712,23 @@ private fun LazyListScope.searchTypeaheadDropdown(
             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
         )
     }
-    items(typeaheadResults, key = { result ->
-        when (result) {
-            is SearchResult.Track -> "ta:track:${result.song.videoId}"
-            is SearchResult.Browse -> "ta:browse:${result.item.browseId}"
-            is SearchResult.TopTrack -> "ta:top:${result.song.videoId}"
-        }
-    }) { result ->
+    items(
+        items = typeaheadResults,
+        key = { result ->
+            when (result) {
+                is SearchResult.Track -> "ta:track:${result.song.videoId}"
+                is SearchResult.Browse -> "ta:browse:${result.item.browseId}"
+                is SearchResult.TopTrack -> "ta:top:${result.song.videoId}"
+            }
+        },
+        contentType = { result ->
+            when (result) {
+                is SearchResult.Track -> "ta_track"
+                is SearchResult.Browse -> "ta_browse"
+                is SearchResult.TopTrack -> "ta_top"
+            }
+        },
+    ) { result ->
         when (result) {
             is SearchResult.Track -> TypeaheadSongRow(
                 song = result.song,
@@ -833,7 +850,11 @@ private fun LazyListScope.recentSearches(
             )
         }
     }
-    items(history, key = { "recent:${it.id}" }) { entity ->
+    items(
+        items = history,
+        key = { "recent:${it.id}" },
+        contentType = { "recent_search" },
+    ) { entity ->
         // A recent track gets the same menu and swipe as a result row, so it can
         // be queued without interrupting what's playing. The ids an old build
         // saved as raw queries ("q:…") have no track behind them.

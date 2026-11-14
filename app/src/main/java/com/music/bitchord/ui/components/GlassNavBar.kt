@@ -45,14 +45,21 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.music.bitchord.ui.components.floatingtabbar.LocalFloatingTabBarPillPosition
+import kotlin.math.abs
 import com.music.bitchord.R
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.Song
@@ -126,9 +133,7 @@ fun GlassNavBar(
     // handler out of the key.
     val currentOnTabSelected by rememberUpdatedState(onTabSelected)
 
-    // Search is the odd one out in the iOS 26 layout: a circle of its own beside
-    // the pill rather than a quarter of it. It is the last tab in BitChord's
-    // order, which is where the shape wants it anyway.
+    // Search is kept as a separate circular navigation item on the right, outside the main 3-item dock.
     val standaloneIndex = tabs.lastIndex
 
     // A factory, not a value — see the note in FloatingTabBar's header. Each of
@@ -229,7 +234,6 @@ fun GlassNavBar(
     ) {
         tabs.forEachIndexed { index, tab ->
             val isSelected = index == selectedIndex
-            val tint = if (isSelected) selectedColor else unselectedColor
             val onClick = {
                 if (!isSelected) haptics.play(Haptic.Select)
                 currentOnTabSelected(index)
@@ -238,12 +242,7 @@ fun GlassNavBar(
                 standaloneTab(
                     key = index,
                     icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = tint,
-                            modifier = Modifier.size(TAB_ICON_SIZE),
-                        )
+                        DockTabIcon(tab = tab, index = index, isSelected = isSelected, isStandalone = true)
                     },
                     onClick = onClick,
                 )
@@ -251,31 +250,97 @@ fun GlassNavBar(
                 tab(
                     key = index,
                     icon = {
-                        Icon(
-                            imageVector = tab.icon,
-                            contentDescription = tab.label,
-                            tint = tint,
-                            modifier = Modifier.size(TAB_ICON_SIZE),
-                        )
+                        DockTabIcon(tab = tab, index = index, isSelected = isSelected, isStandalone = false)
                     },
                     title = {
-                        Text(
-                            text = tab.label,
-                            style = tabLabelStyle(),
-                            color = tint,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            // The library's Tab stacks the glyph and the label
-                            // with nothing between them; the plain bar spaces
-                            // them, and this is where that gap goes.
-                            modifier = Modifier.padding(top = TAB_ICON_LABEL_GAP),
-                        )
+                        DockTabTitle(tab = tab, index = index, isSelected = isSelected)
                     },
                     onClick = onClick,
                 )
             }
         }
     }
+}
+
+/** Apple Music signature light red & pink gradient. */
+private val AppleMusicGradient = Brush.verticalGradient(
+    listOf(
+        Color(0xFFFF375F), // Apple Music coral pink (top)
+        Color(0xFFFA243C), // Apple Music vibrant red (bottom)
+    ),
+)
+
+@Composable
+private fun DockTabIcon(
+    tab: BottomTab,
+    index: Int,
+    isSelected: Boolean,
+    isStandalone: Boolean = false,
+) {
+    val pillPos = LocalFloatingTabBarPillPosition.current
+    val activeProgress = if (isStandalone) {
+        if (isSelected) 1f else 0f
+    } else if (pillPos >= 0f) {
+        (1f - abs(index - pillPos)).coerceIn(0f, 1f)
+    } else {
+        if (isSelected) 1f else 0f
+    }
+
+    Box(
+        modifier = Modifier
+            .size(TAB_ICON_SIZE)
+            .graphicsLayer {
+                // Smoothly interpolates opacity: idle = 0.65f, active = 1.0f
+                alpha = 0.65f + 0.35f * activeProgress
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .drawWithContent {
+                drawContent()
+                if (activeProgress > 0f) {
+                    drawRect(
+                        brush = AppleMusicGradient,
+                        blendMode = BlendMode.SrcIn,
+                        alpha = activeProgress,
+                    )
+                }
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = tab.icon,
+            contentDescription = tab.label,
+            tint = Color.White,
+            modifier = Modifier.size(TAB_ICON_SIZE),
+        )
+    }
+}
+
+@Composable
+private fun DockTabTitle(
+    tab: BottomTab,
+    index: Int,
+    isSelected: Boolean,
+) {
+    val pillPos = LocalFloatingTabBarPillPosition.current
+    val activeProgress = if (pillPos >= 0f) {
+        (1f - abs(index - pillPos)).coerceIn(0f, 1f)
+    } else {
+        if (isSelected) 1f else 0f
+    }
+
+    val idleColor = Color.White.copy(alpha = 0.65f)
+    val activeColor = Color(0xFFFF375F)
+    val color = lerp(idleColor, activeColor, activeProgress)
+
+    Text(
+        text = tab.label,
+        style = tabLabelStyle(),
+        color = color,
+        fontWeight = if (activeProgress > 0.5f) FontWeight.W600 else FontWeight.Normal,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(top = TAB_ICON_LABEL_GAP),
+    )
 }
 
 /**

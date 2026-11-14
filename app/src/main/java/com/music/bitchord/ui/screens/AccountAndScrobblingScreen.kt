@@ -1,10 +1,12 @@
 package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.icons.SfIcons
+import com.music.bitchord.data.auth.ProtonSession
 import com.music.bitchord.auth.clearSpotifyWebSession
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.HorizontalDivider
 import com.music.bitchord.sharedui.resources.Res
+import com.music.bitchord.sharedui.resources.ic_proton_mail
 import com.music.bitchord.sharedui.resources.spotify_logo
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,9 +45,13 @@ fun AccountAndScrobblingScreen(
     onSignIn: () -> Unit,
     onSwitchChannel: () -> Unit,
     onSignOut: () -> Unit,
+    protonSession: ProtonSession? = null,
+    onSignInProton: () -> Unit = {},
+    onSignOutProton: () -> Unit = {},
+    onSyncProton: () -> Unit = {},
     onOpenListenBrainzLogin: () -> Unit,
     onOpenLastfmLogin: () -> Unit,
-    onOpenDiscord: () -> Unit,
+    onOpenDiscord: () -> Unit = {},
     onOpenSpotify: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
@@ -62,9 +68,6 @@ fun AccountAndScrobblingScreen(
     val listenBrainzEnabled by AppSettings.listenBrainzEnabled.collectAsStateWithLifecycle()
     val listenBrainzToken by AppSettings.listenBrainzToken.collectAsStateWithLifecycle()
     val listenBrainzPrimaryArtistOnly by AppSettings.listenBrainzPrimaryArtistOnly.collectAsStateWithLifecycle()
-    val discordToken by AppSettings.discordToken.collectAsStateWithLifecycle()
-    val discordUsername by AppSettings.discordUsername.collectAsStateWithLifecycle()
-    val discordRpcEnabled by AppSettings.discordRpcEnabled.collectAsStateWithLifecycle()
     val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
 
     Column(
@@ -102,6 +105,32 @@ fun AccountAndScrobblingScreen(
         }
 
         SettingsGroup(
+            header = stringResource(R.string.proton_account_label),
+            footer = protonSession?.let { "MUSICA ID: ${it.userId}" },
+        ) {
+            if (protonSession == null) {
+                SettingsRow(
+                    iconPainter = painterResource(Res.drawable.ic_proton_mail),
+                    title = stringResource(R.string.onboarding_sign_in_proton),
+                    subtitle = stringResource(R.string.tap_to_connect),
+                    onClick = onSignInProton,
+                )
+            } else {
+                SettingsRow(
+                    iconPainter = painterResource(Res.drawable.ic_proton_mail),
+                    title = protonSession.name.ifBlank { protonSession.email },
+                    subtitle = protonSession.email,
+                    onClick = onSyncProton,
+                )
+                FullWidthDivider()
+                DestructiveRow(
+                    label = stringResource(R.string.sign_out),
+                    onClick = onSignOutProton,
+                )
+            }
+        }
+
+        SettingsGroup(
             header = stringResource(R.string.spotify),
             footer = stringResource(R.string.spotify_connect_subtitle),
         ) {
@@ -123,23 +152,6 @@ fun AccountAndScrobblingScreen(
                     },
                 )
             }
-        }
-
-        SettingsGroup(
-            header = stringResource(R.string.rich_presence),
-            footer = stringResource(R.string.rich_presence_footer),
-        ) {
-            SettingsRow(
-                icon = ImageVector.vectorResource(R.drawable.ic_discord),
-                title = "Discord",
-                subtitle = when {
-                    discordToken.isEmpty() -> stringResource(R.string.tap_to_connect)
-                    !discordRpcEnabled -> stringResource(R.string.connected_presence_off)
-                    discordUsername.isNotEmpty() -> stringResource(R.string.sharing_as, discordUsername)
-                    else -> stringResource(R.string.sharing_listens)
-                },
-                onClick = onOpenDiscord,
-            )
         }
 
         if (AppSettings.scrobblingAvailable) {

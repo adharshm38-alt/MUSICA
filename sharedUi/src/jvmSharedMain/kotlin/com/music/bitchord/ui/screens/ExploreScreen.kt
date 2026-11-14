@@ -76,7 +76,8 @@ fun ExploreScreen(
         modifier = modifier,
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val columns = moodColumns(maxWidth)
+            val containerWidth = maxWidth
+            val columns = moodColumns(containerWidth)
             LazyColumn(
                 state = listState,
                 contentPadding = contentPadding,
@@ -110,7 +111,11 @@ fun ExploreScreen(
                         val rows = state.data.flatMap(MoodGenreSection::items)
                             .distinctBy { it.browseId to it.params }
                             .chunked(columns)
-                        items(rows, key = { row -> row.first().let { "${it.browseId}|${it.params}" } }) { row ->
+                        items(
+                            items = rows,
+                            key = { row -> row.first().let { "${it.browseId}|${it.params}" } },
+                            contentType = { "mood_genre_row" },
+                        ) { row ->
                             MoodGenreRow(row = row, columns = columns, onCategoryClick = onCategoryClick)
                         }
                     }
@@ -336,7 +341,11 @@ fun MoodGenrePlaylistsScreen(
             is UiState.Error -> item {
                 MessageState(state.message, actionLabel = stringResource(Res.string.retry), onAction = onRetry)
             }
-            is UiState.Success -> items(state.data, key = { it.title }) { shelf ->
+            is UiState.Success -> items(
+                items = state.data,
+                key = { it.title },
+                contentType = { "explore_shelf" },
+            ) { shelf ->
                 Shelf(shelf = shelf, onItemClick = onItemClick)
             }
         }

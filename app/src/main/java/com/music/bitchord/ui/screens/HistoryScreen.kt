@@ -97,4 +97,5 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexed(
 ) = items(
     count = songs.size,
     key = { "${songs[it].videoId}:$it" },
+    contentType = { "history_song" },
 ) { index -> row(index, songs[index]) }

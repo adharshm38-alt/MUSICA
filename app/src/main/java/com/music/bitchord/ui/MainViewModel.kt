@@ -1,10 +1,16 @@
 package com.music.bitchord.ui
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.music.bitchord.R
 import com.music.bitchord.auth.AuthStore
+import com.music.bitchord.auth.ProtonAuthStore
+import com.music.bitchord.data.auth.ProtonAuthClient
+import com.music.bitchord.data.auth.ProtonSession
+import kotlinx.serialization.json.JsonObject
 import com.music.bitchord.auth.SignedIn
 import com.music.bitchord.auth.GoogleAccountSession
 import com.music.bitchord.auth.YouTubeProfile
@@ -14,11 +20,17 @@ import com.music.bitchord.auth.adjacentProfile
 import com.music.bitchord.data.AppUpdateChecker
 import com.music.bitchord.data.LocalMediaRepository
 import com.music.bitchord.data.LikeState
+import com.music.bitchord.data.VideoDiscoveryMetadata
+import com.music.bitchord.data.VideoDiscoveryRepository
+import com.music.bitchord.data.MusicArtworkResolver
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.TopPicks
 import com.music.bitchord.data.AppleArtistPhotos
 import com.music.bitchord.data.model.ArtistRef
 import com.music.bitchord.data.model.TopPick
+import com.music.bitchord.data.model.VideoDiscoveryCache
+import com.music.bitchord.data.model.VideoDiscoveryItem
+import com.music.bitchord.data.model.WatchTarget
 import com.music.bitchord.data.stats.ListeningStats
 import com.music.bitchord.data.stats.ReplayPeriod
 import android.util.Log
@@ -43,6 +55,7 @@ import com.music.bitchord.ui.navigation.AppNavigator
 import com.music.bitchord.data.innertube.Innertube
 import com.music.bitchord.data.innertube.PlaybackTracker
 import com.music.bitchord.data.innertube.StreamResolver
+import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.auth.CapturedSession
 import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.data.model.Account
@@ -121,6 +134,8 @@ enum class SearchSource { YOUTUBE, LIBRARY, ADDONS }
 class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val authStore = AuthStore(app)
+    val protonAuthStore = ProtonAuthStore(app)
+    val protonSession = MutableStateFlow(protonAuthStore.session)
 
     // Process-wide, so the playback service offers Like on the same tracks.
     private val _signedIn = SignedIn.state(app)
@@ -172,6 +187,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _explore = MutableStateFlow<UiState<List<MoodGenreSection>>>(UiState.Loading)
     val explore: StateFlow<UiState<List<MoodGenreSection>>> = _explore.asStateFlow()
+
+    private val _topPreviewItems = MutableStateFlow<List<VideoDiscoveryItem>>(emptyList())
+    val topPreviewItems: StateFlow<List<VideoDiscoveryItem>> = _topPreviewItems.asStateFlow()
+
+    private val _topPreviewLoading = MutableStateFlow(false)
+    val topPreviewLoading: StateFlow<Boolean> = _topPreviewLoading.asStateFlow()
+
+    private var topPreviewJob: Job? = null
+    private var topPreviewCache: VideoDiscoveryCache? = null
+    private var lastTopPreviewAttemptMs: Long = 0L
+
+    private val _homeVideoDiscovery = MutableStateFlow<List<VideoDiscoveryItem>>(emptyList())
+    val homeVideoDiscovery: StateFlow<List<VideoDiscoveryItem>> = _homeVideoDiscovery.asStateFlow()
+
+    private val _homeVideoDiscoveryLoading = MutableStateFlow(false)
+    val homeVideoDiscoveryLoading: StateFlow<Boolean> = _homeVideoDiscoveryLoading.asStateFlow()
+
+    private var homeVideoDiscoveryJob: Job? = null
+    private var homeVideoDiscoveryCache: VideoDiscoveryCache? = null
+    private var lastHomeVideoDiscoveryAttemptMs: Long = 0L
+    private val metadataInFlight = HashSet<String>()
 
     private val _selectedMoodGenre = MutableStateFlow<MoodGenre?>(null)
     val selectedMoodGenre: StateFlow<MoodGenre?> = _selectedMoodGenre.asStateFlow()
@@ -1340,6 +1376,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 onSuccess = {
                     _playlists.value = _playlists.value
                         .filterNot { it.playlistId == playlist.playlistId }
+                    com.music.bitchord.data.PlaylistCoverStore.resetCustomCover(playlist.browseId)
                     // The card in the library tab, which is the surface the
                     // deletion was almost certainly ordered from — and which the
                     // re-fetch that used to stand in for this left in place; see
@@ -1467,6 +1504,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary()
             loadAccount()
             loadPlaylists()
+        }
+        if (protonAuthStore.isSignedIn) {
+            syncProtonLibrary()
         }
         viewModelScope.launch {
             // drop(1): the current value is just the count so far, not a play.
@@ -1628,6 +1668,249 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!exploreRequested) loadExplore()
     }
 
+    /**
+     * Automatically updates "Top Preview for You" cards (Similar artist/song recommendations)
+     * independently from Discover Music Videos, guaranteeing zero duplicate video IDs.
+     */
+    fun refreshTopPreviewIfStale(force: Boolean = false) {
+        if (topPreviewJob?.isActive == true) return
+        val identityKey = listenerKey()
+        val identity = identityKey ?: "guest"
+        topPreviewJob = viewModelScope.launch {
+            val file = File(getApplication<Application>().filesDir, HOME_TOP_PREVIEW_FILE)
+            val cached = topPreviewCache ?: withContext(Dispatchers.IO) {
+                runCatching { file.takeIf { it.exists() }?.readText() }
+                    .getOrNull()
+                    ?.let(VideoDiscoveryRepository::decodeCache)
+            }?.also { loaded ->
+                topPreviewCache = loaded
+                if (loaded.listener == identity && _topPreviewItems.value.isEmpty() && loaded.items.isNotEmpty()) {
+                    val discoverIds = _homeVideoDiscovery.value.mapTo(HashSet()) { it.videoId }
+                    _topPreviewItems.value = loaded.items.filterNot { it.videoId in discoverIds }
+                }
+            }
+
+            if (cached != null && cached.listener != identity) {
+                if (_topPreviewItems.value.isNotEmpty()) _topPreviewItems.value = emptyList()
+            }
+
+            val nowMs = System.currentTimeMillis()
+            val canRefresh = VideoDiscoveryRepository.shouldRefresh(
+                cache = cached,
+                listenerIdentity = identity,
+                nowMs = nowMs,
+                lastAttemptMs = lastTopPreviewAttemptMs,
+                isOnline = isNetworkAvailable(),
+                force = force,
+            )
+            if (!canRefresh) {
+                _topPreviewLoading.value = false
+                return@launch
+            }
+
+            lastTopPreviewAttemptMs = nowMs
+            _topPreviewLoading.value = _topPreviewItems.value.isEmpty()
+            try {
+                val homeShelves = (_home.value as? UiState.Success)?.data
+                    ?: withTimeoutOrNull(4_000L) { _home.first { it !is UiState.Loading } }
+                        .let { (it as? UiState.Success)?.data }
+                        .orEmpty()
+                val taste = localTaste()
+                val ytHistory = (_history.value as? UiState.Success)?.data
+                    ?: if (_signedIn.value) {
+                        YtMusicRepository.recentHistory().getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
+                val liked = (_library.value as? UiState.Success)?.data?.let { page ->
+                    page.likedSongs + page.librarySongs
+                }.orEmpty()
+                val recentCombined = (taste.songs + ytHistory).distinctBy { it.videoId }
+                val playedIds = recentCombined.mapTo(HashSet()) { it.videoId }
+                val discoverIds = _homeVideoDiscovery.value.mapTo(HashSet()) { it.videoId }
+                val effectivePrevious = topPreviewCache ?: cached
+                val updated = VideoDiscoveryRepository.refreshTopPreview(
+                    listenerIdentity = identity,
+                    recentSongs = recentCombined,
+                    likedSongs = liked,
+                    homeShelves = homeShelves,
+                    initialHomeContinuation = homeContinuation,
+                    extraArtists = taste.artists.map { it.name },
+                    blockedVideoIds = discoverIds,
+                    playedVideoIds = playedIds,
+                    previousCache = effectivePrevious,
+                    nowMs = nowMs,
+                )
+                if (identityKey != listenerKey()) return@launch
+                if (updated.items.isNotEmpty()) {
+                    val deduplicated = updated.items.filterNot { it.videoId in discoverIds }
+                    topPreviewCache = updated.copy(items = deduplicated)
+                    _topPreviewItems.value = deduplicated
+                    withContext(Dispatchers.IO) {
+                        runCatching { file.writeText(VideoDiscoveryRepository.encodeCache(updated)) }
+                    }
+                }
+            } finally {
+                _topPreviewLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Automatically updates "Discover Music Videos" cards (catalog, trending, genres)
+     * independently from Top Preview, guaranteeing zero duplicate video IDs across sections.
+     */
+    fun refreshHomeVideoDiscoveryIfStale(force: Boolean = false) {
+        refreshTopPreviewIfStale(force)
+        if (homeVideoDiscoveryJob?.isActive == true) return
+        val identityKey = listenerKey()
+        val identity = identityKey ?: "guest"
+        homeVideoDiscoveryJob = viewModelScope.launch {
+            val file = File(getApplication<Application>().filesDir, HOME_VIDEO_DISCOVERY_FILE)
+            val cached = homeVideoDiscoveryCache ?: withContext(Dispatchers.IO) {
+                runCatching { file.takeIf { it.exists() }?.readText() }
+                    .getOrNull()
+                    ?.let(VideoDiscoveryRepository::decodeCache)
+            }?.also { loaded ->
+                homeVideoDiscoveryCache = loaded
+                if (loaded.listener == identity && _homeVideoDiscovery.value.isEmpty() && loaded.items.isNotEmpty()) {
+                    val topPreviewIds = _topPreviewItems.value.mapTo(HashSet()) { it.videoId }
+                    _homeVideoDiscovery.value = loaded.items.filterNot { it.videoId in topPreviewIds }
+                }
+            }
+
+            if (cached != null && cached.listener != identity) {
+                if (_homeVideoDiscovery.value.isNotEmpty()) _homeVideoDiscovery.value = emptyList()
+            }
+
+            val nowMs = System.currentTimeMillis()
+            val canRefresh = VideoDiscoveryRepository.shouldRefresh(
+                cache = cached,
+                listenerIdentity = identity,
+                nowMs = nowMs,
+                lastAttemptMs = lastHomeVideoDiscoveryAttemptMs,
+                isOnline = isNetworkAvailable(),
+                force = force,
+            )
+            if (!canRefresh) {
+                _homeVideoDiscoveryLoading.value = false
+                return@launch
+            }
+
+            lastHomeVideoDiscoveryAttemptMs = nowMs
+            _homeVideoDiscoveryLoading.value = _homeVideoDiscovery.value.isEmpty()
+            try {
+                val homeShelves = (_home.value as? UiState.Success)?.data
+                    ?: withTimeoutOrNull(4_000L) { _home.first { it !is UiState.Loading } }
+                        .let { (it as? UiState.Success)?.data }
+                        .orEmpty()
+                val taste = localTaste()
+                val ytHistory = (_history.value as? UiState.Success)?.data
+                    ?: if (_signedIn.value) {
+                        YtMusicRepository.recentHistory().getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
+                val liked = (_library.value as? UiState.Success)?.data?.let { page ->
+                    page.likedSongs + page.librarySongs
+                }.orEmpty()
+                val recentCombined = (taste.songs + ytHistory).distinctBy { it.videoId }
+                val playedIds = recentCombined.mapTo(HashSet()) { it.videoId }
+                val topPreviewIds = _topPreviewItems.value.mapTo(HashSet()) { it.videoId }
+                val effectivePrevious = homeVideoDiscoveryCache ?: cached
+                val updated = VideoDiscoveryRepository.refresh(
+                    listenerIdentity = identity,
+                    recentSongs = recentCombined,
+                    likedSongs = liked,
+                    homeShelves = homeShelves,
+                    initialHomeContinuation = homeContinuation,
+                    extraArtists = taste.artists.map { it.name },
+                    extraGenres = taste.genres,
+                    blockedVideoIds = topPreviewIds,
+                    playedVideoIds = playedIds,
+                    previousCache = effectivePrevious,
+                    nowMs = nowMs,
+                    target = VideoDiscoveryRepository.DiscoveryTarget.DISCOVER_VIDEOS,
+                )
+                if (identityKey != listenerKey()) return@launch
+                if (updated.items.isNotEmpty()) {
+                    val deduplicated = updated.items.filterNot { it.videoId in topPreviewIds }
+                    homeVideoDiscoveryCache = updated.copy(items = deduplicated)
+                    _homeVideoDiscovery.value = deduplicated
+                    withContext(Dispatchers.IO) {
+                        runCatching { file.writeText(VideoDiscoveryRepository.encodeCache(updated)) }
+                    }
+                }
+            } finally {
+                _homeVideoDiscoveryLoading.value = false
+            }
+        }
+    }
+
+    /** Enriches Stage 2 / Stage 3 item with real creator avatar, follow state, hashtags & companion song. */
+    fun ensureVideoDiscoveryMetadata(item: VideoDiscoveryItem) {
+        if (item.metadataLoaded || !metadataInFlight.add(item.videoId)) return
+        viewModelScope.launch {
+            try {
+                val enriched = VideoDiscoveryMetadata.enrich(item)
+                _homeVideoDiscovery.value = _homeVideoDiscovery.value.map { existing ->
+                    if (existing.videoId == enriched.videoId) enriched else existing
+                }
+            } finally {
+                metadataInFlight.remove(item.videoId)
+            }
+        }
+    }
+
+    fun toggleVideoDiscoveryFollow(item: VideoDiscoveryItem, onSignInRequired: () -> Unit) {
+        if (!requireSignIn()) {
+            onSignInRequired()
+            return
+        }
+        val channelId = item.artistBrowseId?.takeIf { it.isNotBlank() } ?: return
+        val next = !(item.subscribed == true)
+        updateItemSubscribed(channelId, item.videoId, next)
+        viewModelScope.launch {
+            if (YtMusicRepository.setSubscribed(channelId, next).isSuccess) {
+                libraryStale = true
+                VideoDiscoveryMetadata.updateSubscriptionCache(item.videoId, next)
+            } else {
+                updateItemSubscribed(channelId, item.videoId, !next)
+            }
+        }
+    }
+
+    private fun updateItemSubscribed(channelId: String, videoId: String, subscribed: Boolean) {
+        _homeVideoDiscovery.value = _homeVideoDiscovery.value.map { existing ->
+            if (existing.videoId == videoId || existing.artistBrowseId == channelId) {
+                existing.copy(subscribed = subscribed)
+            } else {
+                existing
+            }
+        }
+    }
+
+    suspend fun resolveVideoDiscoveryAudioSong(item: VideoDiscoveryItem): Song =
+        withContext(Dispatchers.IO) {
+            val baseSong = item.bestSongForAudioOrLibrary()
+            val audioSong = YtMusicRepository.resolveAudio(baseSong)
+            val officialArt = item.musicArtworkUrl ?: MusicArtworkResolver.resolveArtwork(audioSong)
+            if (officialArt != null) {
+                audioSong.copy(thumbnailUrl = officialArt)
+            } else if (MusicArtworkResolver.isVideoThumbnail(audioSong.thumbnailUrl)) {
+                audioSong.copy(thumbnailUrl = null)
+            } else {
+                audioSong
+            }
+        }
+
+    private fun isNetworkAvailable(): Boolean {
+        val cm = getApplication<Application>().getSystemService(ConnectivityManager::class.java) ?: return true
+        val active = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(active) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
     private suspend fun fetchExplore() {
         val state = YtMusicRepository.moodAndGenres().fold(
             onSuccess = { sections ->
@@ -1712,6 +1995,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // one at the tail.
         _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size
         loadTopPicks(identity, rebuild = false)
+        refreshHomeVideoDiscoveryIfStale()
         viewModelScope.launch {
             launch {
                 try {
@@ -1814,6 +2098,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (topPicksJob?.isActive == true) return
         if (topPicksSlotShown == null || topPicksSlotShown == topPicksSlot()) return
         loadTopPicks(listenerKey(), rebuild = false)
+    }
+
+    /** User-triggered refresh of Top Picks cards. Rebuilds and rotates recommendations. */
+    fun refreshTopPicks() {
+        loadTopPicks(listenerKey(), rebuild = true)
     }
 
     /** Which hour of the clock [now] falls in: the date and the hour, 00 to 23. */
@@ -2572,6 +2861,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         /** Today's Top Picks row, kept so the next launch paints it before any request. */
         private const val TOP_PICKS_FILE = "top_picks_v4.json"
+
+        /** Home Stage 1 music video discovery snapshot and repeat-avoidance history. */
+        private const val HOME_VIDEO_DISCOVERY_FILE = "home_video_discovery_v1.json"
+        private const val HOME_TOP_PREVIEW_FILE = "home_top_preview_v1.json"
 
         /** Per-addon budget for the Addons search tab; a slow addon is left out, not waited on. */
         private const val ADDON_SEARCH_TIMEOUT_MS = 12_000L
@@ -3576,6 +3869,51 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loadLibrary()
             loadAccount()
             loadPlaylists()
+            refreshHomeVideoDiscoveryIfStale()
+        }
+    }
+
+    fun onProtonAuthenticated(session: ProtonSession) {
+        protonAuthStore.saveSession(session)
+        protonSession.value = session
+        if (ListenTogether.nickname().isBlank()) {
+            ListenTogether.setNickname(session.name)
+        }
+        syncProtonLibrary()
+    }
+
+    fun signOutProton() {
+        protonAuthStore.clearSession()
+        protonSession.value = null
+    }
+
+    fun syncProtonLibrary() {
+        val session = protonAuthStore.session ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            ProtonAuthClient.fetchProfile(session.token, protonAuthStore.serverUrl)
+                .onSuccess { refreshed ->
+                    protonAuthStore.saveSession(refreshed)
+                    protonSession.value = refreshed
+                }
+            ProtonAuthClient.fetchLibrary(session.token, protonAuthStore.serverUrl)
+                .onSuccess {
+                    Log.d("ProtonAuth", "Synced Proton cloud library for ${session.userId}")
+                }
+                .onFailure { err ->
+                    Log.w("ProtonAuth", "Failed to sync Proton cloud library: ${err.message}")
+                }
+        }
+    }
+
+    fun pushProtonLibrary(
+        payload: JsonObject,
+    ) {
+        val session = protonAuthStore.session ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            ProtonAuthClient.syncLibrary(session.token, payload, protonAuthStore.serverUrl)
+                .onFailure { err ->
+                    Log.w("ProtonAuth", "Failed to push Proton cloud library: ${err.message}")
+                }
         }
     }
 

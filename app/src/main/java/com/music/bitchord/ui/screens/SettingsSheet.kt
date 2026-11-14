@@ -126,10 +126,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
-import com.music.bitchord.AppIcon
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -141,6 +141,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import coil3.compose.AsyncImage
@@ -223,6 +224,12 @@ fun SettingsScreen(
     onOpenSection: (SettingsCategory) -> Unit = {},
     /** Opens a choice with more options than its row can show, as a page. */
     onOpenChoice: (SettingsChoiceKind) -> Unit = {},
+    /** Opens the full-screen About MUSICA details page. */
+    onOpenAboutDetails: () -> Unit = {},
+    /** Opens the Extra Changes page. */
+    onOpenExtraChanges: () -> Unit = {},
+    /** Opens the Discord Rich Presence screen. */
+    onOpenDiscord: () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -246,6 +253,7 @@ fun SettingsScreen(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
+    val miniPlayerEnabled by AppSettings.miniPlayerEnabled.collectAsStateWithLifecycle()
     val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
     val progressiveBlur by AppSettings.progressiveBlur.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
@@ -407,12 +415,6 @@ fun SettingsScreen(
     var showLastfmLoginDialog by remember { mutableStateOf(false) }
     val scrobbleScope = rememberCoroutineScope()
 
-    val version = remember(context) {
-        runCatching {
-            context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        }.getOrNull() ?: "1.0"
-    }
-
     // Made fresh on every pass rather than remembered: it tallies the rows
     // that answered to the query, and that tally has to start from zero each
     // time the query changes.
@@ -457,7 +459,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 4.dp),
             )
 
-            SearchableSettingsGroup(search) {
+            SearchableSettingsGroup(search, header = stringResource(R.string.settings_account_sessions)) {
                 val accountTitle = stringResource(R.string.account_integrations)
                 // What the row opens is the scrobbling screen, so the services it
                 // signs into are worth typing at this field even though none of
@@ -505,7 +507,7 @@ fun SettingsScreen(
             // above lists that as the module's own row now. Lossless itself is no
             // longer a setting at all — see
             // [SourceResolver.requestForNow][com.music.bitchord.data.sources.SourceResolver.requestForNow].
-            SearchableSettingsGroup(search, header = stringResource(R.string.audio_quality)) {
+            SearchableSettingsGroup(search, header = stringResource(R.string.settings_audio_streaming)) {
                 val sourceTitle = stringResource(R.string.source)
                 val sourceSubtitle = stringResource(R.string.sources_subtitle)
                 row(sourceTitle, sourceSubtitle, "addon", "lossless") {
@@ -520,16 +522,24 @@ fun SettingsScreen(
                 // being a setting of its own, so it reads as part of Sources.
                 val directSourceTitle = stringResource(R.string.direct_source_stream)
                 // Drawn like the animated-cover cellular line: no icon, no divider.
-                row(directSourceTitle, "addon", "direct", "prefetch", "read-ahead", divided = false) {
-                    // Off for the length of a party: holding every fetch until a
-                    // track is about to play would leave this phone behind the
-                    // others at each sync — see [DirectSourceGate.isActive].
-                    SettingsSubRow(
+                row(directSourceTitle, "addon", "direct", "prefetch", "read-ahead", divided = true) {
+                    SettingsRow(
+                        icon = SfIcons.Waves,
                         title = directSourceTitle,
-                        checked = directSourceStream && !party.inParty,
-                        onCheckedChange = AppSettings::setDirectSourceStream,
                         subtitle = stringResource(R.string.direct_source_stream_in_party).takeIf { party.inParty },
                         enabled = !party.inParty,
+                        trailing = {
+                            IosSwitch(
+                                checked = directSourceStream && !party.inParty,
+                                onCheckedChange = AppSettings::setDirectSourceStream,
+                                enabled = !party.inParty,
+                            )
+                        },
+                        onClick = {
+                            if (!party.inParty) {
+                                AppSettings.setDirectSourceStream(!directSourceStream)
+                            }
+                        },
                     )
                 }
                 val onWifiTitle = stringResource(R.string.on_wifi)
@@ -583,20 +593,215 @@ fun SettingsScreen(
                                     enabled = dolbyAtmosSupported,
                                 )
                             },
-                            onClick = { AppSettings.setDolbyAtmos(!dolbyAtmos) },
+                            onClick = {
+                                if (dolbyAtmosSupported) {
+                                    AppSettings.setDolbyAtmos(!dolbyAtmos)
+                                }
+                            },
                         )
                     }
                 }
             }
 
-            // The categories, each a page of its own — until there is a query,
-            // when their rows answer here instead (below).
             if (!searching) {
-                SettingsCategoryList(onOpen = onOpenSection)
+                // Category B: Listening Experience
+                SettingsGroup(header = stringResource(R.string.settings_listening_experience)) {
+                    SettingsRow(
+                        icon = SfIcons.Download,
+                        title = stringResource(R.string.downloads),
+                        subtitle = stringResource(R.string.settings_downloads_desc),
+                        onClick = { onOpenSection(SettingsCategory.DOWNLOADS) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.PlayCircle,
+                        title = stringResource(R.string.playback),
+                        subtitle = stringResource(R.string.settings_playback_desc),
+                        onClick = { onOpenSection(SettingsCategory.PLAYBACK) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Video,
+                        title = stringResource(R.string.content_preferences),
+                        subtitle = stringResource(R.string.settings_content_desc),
+                        onClick = { onOpenSection(SettingsCategory.CONTENT_PREFERENCES) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Appearance,
+                        title = stringResource(R.string.appearance),
+                        subtitle = stringResource(R.string.settings_appearance_desc),
+                        onClick = { onOpenSection(SettingsCategory.APPEARANCE) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Performance,
+                        title = stringResource(R.string.performance),
+                        subtitle = stringResource(R.string.settings_performance_desc),
+                        onClick = { onOpenSection(SettingsCategory.PERFORMANCE) },
+                    )
+                }
+
+                // Category C: Library & Storage
+                SettingsGroup(header = stringResource(R.string.settings_library_storage)) {
+                    SettingsRow(
+                        icon = SfIcons.LibraryMusic,
+                        title = stringResource(R.string.local_music),
+                        subtitle = stringResource(R.string.settings_local_music_desc),
+                        onClick = { onOpenSection(SettingsCategory.LOCAL_MUSIC) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Storage,
+                        title = stringResource(R.string.storage),
+                        subtitle = stringResource(R.string.settings_storage_desc),
+                        onClick = { onOpenSection(SettingsCategory.STORAGE) },
+                    )
+                }
+
+                // Category D: Privacy & Data
+                SettingsGroup(header = stringResource(R.string.settings_privacy_data)) {
+                    SettingsRow(
+                        icon = SfIcons.YourData,
+                        title = stringResource(R.string.your_data),
+                        subtitle = stringResource(R.string.settings_your_data_desc),
+                        onClick = { onOpenSection(SettingsCategory.YOUR_DATA) },
+                    )
+                }
+
+                // Category E: App & Personalization
+                SettingsGroup(header = stringResource(R.string.settings_app_personalization)) {
+                    SettingsRow(
+                        icon = SfIcons.Miscellaneous,
+                        title = stringResource(R.string.miscellaneous),
+                        subtitle = stringResource(R.string.settings_miscellaneous_desc),
+                        onClick = { onOpenSection(SettingsCategory.MISCELLANEOUS) },
+                    )
+                    RowDivider()
+                    val selectedLanguage = AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag()
+                        ?: Locale.getDefault().toLanguageTag()
+                    SettingsRow(
+                        icon = SfIcons.Language,
+                        title = stringResource(R.string.language),
+                        subtitle = stringResource(languageDisplayNameRes(selectedLanguage)),
+                        onClick = { onOpenSection(SettingsCategory.LANGUAGE) },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = Icons.Rounded.AutoAwesome,
+                        title = "Extra Changes",
+                        subtitle = "Backgrounds & custom styling",
+                        onClick = onOpenExtraChanges,
+                    )
+                }
+
+                // Category F: Wear OS
                 if (watchAvailable) {
-                    SettingsGroup {
+                    SettingsGroup(header = stringResource(R.string.wear_os_page_title)) {
                         WearOsSettingsRow(onClick = onWearOs)
                     }
+                }
+
+                // Community
+                val uriHandler = LocalUriHandler.current
+                SettingsGroup(header = stringResource(R.string.settings_community)) {
+                    SettingsRow(
+                        iconPainter = painterResource(R.drawable.ic_discord),
+                        title = "Discord Rich Presence",
+                        subtitle = stringResource(R.string.rich_presence_footer),
+                        onClick = onOpenDiscord,
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Groups,
+                        title = "Discord Community",
+                        value = "Join MUSICA Community",
+                        onClick = { runCatching { uriHandler.openUri("https://discord.gg/K2H8VuBd6") } },
+                    )
+                }
+
+                // Category G: About
+                SettingsGroup(header = stringResource(R.string.settings_about)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = ROW_INSET, vertical = 22.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.musica_about_logo),
+                            contentDescription = "MUSICA Logo",
+                            modifier = Modifier.size(72.dp),
+                        )
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = "MUSICA",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = "Version 1.0.0",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Person,
+                        title = "Owner",
+                        value = "Adarsh M",
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        iconPainter = painterResource(R.drawable.ic_github),
+                        title = "GitHub",
+                        value = "adharshm38-alt/MUSICA2",
+                        onClick = { runCatching { uriHandler.openUri("https://github.com/adharshm38-alt/MUSICA2") } },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Person,
+                        title = "Developer",
+                        value = "adharshm38-alt",
+                        onClick = { runCatching { uriHandler.openUri("https://github.com/adharshm38-alt") } },
+                    )
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.Info,
+                        title = "Details",
+                        value = "About MUSICA",
+                        onClick = onOpenAboutDetails,
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = GROUP_INSET, vertical = 16.dp)
+                        .padding(bottom = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = "~YouTube Music & Listen Together Backend\nFree and open-source software under GPL-3.0 · Based on BitChord",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(18.dp))
+                    Text(
+                        text = "MADE IN KERALA, INDIA",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.W800,
+                            letterSpacing = 0.8.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        textAlign = TextAlign.Center,
+                    )
                 }
             }
         }
@@ -635,7 +840,7 @@ fun SettingsScreen(
                     title = exportDownloadsTitle,
                     checked = exportDownloads,
                     onCheckedChange = AppSettings::setExportDownloads,
-                    subtitle = "Music/BitChord".takeIf { exportDownloads },
+                    subtitle = "Music/MUSICA".takeIf { exportDownloads },
                 )
             }
             val syncPlaylistsTitle = stringResource(R.string.sync_downloaded_playlists)
@@ -1062,6 +1267,21 @@ fun SettingsScreen(
                         )
                     },
                     onClick = { AppSettings.setDisableBlendEffects(!disableBlendEffects) },
+                )
+            }
+            val miniPlayerTitle = "Mini Player"
+            row(miniPlayerTitle, "mini player", "player", "dock", "bottom bar") {
+                SettingsRow(
+                    icon = SfIcons.PlayCircle,
+                    title = miniPlayerTitle,
+                    subtitle = "Keep floating player bar accessible while scrolling",
+                    trailing = {
+                        IosSwitch(
+                            checked = miniPlayerEnabled,
+                            onCheckedChange = AppSettings::setMiniPlayerEnabled,
+                        )
+                    },
+                    onClick = { AppSettings.setMiniPlayerEnabled(!miniPlayerEnabled) },
                 )
             }
             val liquidGlassTitle = stringResource(R.string.liquid_glass)
@@ -1702,66 +1922,13 @@ fun SettingsScreen(
                     onClick = { AppSettings.setShowNerdStats(!nerdStats) },
                 )
             }
-            val appIconTitle = stringResource(R.string.app_icon)
-            row(appIconTitle, "icon", "launcher", "logo") {
-                var selectedIcon by remember { mutableStateOf(AppIcon.current(context)) }
-                SettingsRow(icon = SfIcons.Apps, title = appIconTitle)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AppIcon.entries.forEach { option ->
-                        val selected = option == selectedIcon
-                        Column(
-                            modifier = Modifier
-                                .width(84.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    selectedIcon = option
-                                    AppIcon.apply(context, option)
-                                }
-                                .padding(vertical = 6.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            // A glass foreground holds the finished icon in its own shape on the
-                            // central 72 of 108 dp: scaled 1.5× it fills the tile as designed.
-                            // Only the default goes through an adaptive mask.
-                            val preview = option.previewRes
-                            if (preview == null) {
-                                AndroidView(
-                                    factory = { ctx ->
-                                        android.widget.ImageView(ctx).apply { setImageResource(option.iconRes) }
-                                    },
-                                    modifier = Modifier
-                                        .size(68.dp)
-                                        .clip(RoundedCornerShape(22.dp)),
-                                )
-                            } else {
-                                Image(
-                                    painter = painterResource(preview),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier
-                                        .size(68.dp)
-                                        .scale(1.5f),
-                                )
-                            }
-                            Text(
-                                text = stringResource(option.labelRes),
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.padding(top = 6.dp),
-                            )
-                        }
-                    }
-                }
+            row("Discord Rich Presence", "discord", "rich presence", "rpc") {
+                SettingsRow(
+                    iconPainter = painterResource(R.drawable.ic_discord),
+                    title = "Discord Rich Presence",
+                    subtitle = stringResource(R.string.rich_presence_footer),
+                    onClick = onOpenDiscord,
+                )
             }
         }
 
@@ -1785,43 +1952,7 @@ fun SettingsScreen(
             MessageState(stringResource(R.string.settings_search_empty, searchQuery))
         }
 
-        // The version line is the page's colophon, not a setting: it belongs to
-        // the whole list, so it goes when the list is narrowed to a few rows.
-        if (section == null && searchQuery.isBlank()) {
-        Text(
-            text = buildAnnotatedString {
-                append("bitchord $version  ")
-                val linkStyles = TextLinkStyles(
-                    style = SpanStyle(
-                        color = MaterialTheme.colorScheme.primary,
-                        textDecoration = TextDecoration.Underline,
-                    ),
-                )
-                withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx/BitChord", linkStyles)) {
-                    append("GitHub")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://github.com/kushagrasinghx", linkStyles)) {
-                    append("Developer")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://discord.gg/pDdKfrdHY6", linkStyles)) {
-                    append("Discord")
-                }
-                append("  ")
-                withLink(LinkAnnotation.Url("https://bitchord.kushagrasingh.in/", linkStyles)) {
-                    append("Website")
-                }
-                append("\n~YouTube Music & Listen Together Backend")
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 24.dp, bottom = 8.dp),
-        )
-        }
+
     }
 
     // Everything in the Cached songs folder goes with it, so say so first.

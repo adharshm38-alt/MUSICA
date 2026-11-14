@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.settings.LibrarySort
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -22,6 +23,10 @@ interface AppUiHost {
 
     /** How a Library "Show all" grid is ordered. */
     val librarySort: StateFlow<LibrarySort>
+
+    /** Custom local cover URIs keyed by canonical playlist key, for reactive cover rendering. */
+    val customPlaylistCovers: StateFlow<Map<String, String>>
+        get() = MutableStateFlow(emptyMap())
 
     /** Video ids of the tracks already downloaded, for the mark on their rows. */
     @Composable

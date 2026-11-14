@@ -144,7 +144,7 @@ ExecStart=/usr/local/sbin/bitchord-watchdog
 UNIT
 cat > /etc/systemd/system/bitchord-watchdog.timer <<'UNIT'
 [Unit]
-Description=Run the BitChord health watchdog every minute
+Description=Run the MUSICA health watchdog every minute
 [Timer]
 OnBootSec=3min
 OnUnitActiveSec=60s

@@ -254,18 +254,17 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             }
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizePercent(context, 0.20)
+                    .maxSizePercent(context, 0.25)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(100L * 1024 * 1024)
+                    .maxSizeBytes(150L * 1024 * 1024)
                     .build()
             }
-            // Covers arriving with a hard cut read as the list flickering as
-            // it scrolls; a short fade reads as them developing.
-            .crossfade(200)
+            // Crisp, quick crossfade so scrolling does not choke on concurrent alpha animations
+            .crossfade(100)
             .allowHardware(!emulatedGpu)
             .build()
 

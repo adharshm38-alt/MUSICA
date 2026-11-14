@@ -134,6 +134,10 @@ fun BrowseActionsMenu(
      * playlist the account only saved.
      */
     onReorder: (() -> Unit)? = null,
+    /** Pick a custom cover image for a user-created playlist. */
+    onChangeCover: (() -> Unit)? = null,
+    /** Restore default artwork for a playlist that currently has a custom cover. */
+    onResetCover: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     /**
      * Removes the files this release was downloaded as, when it was downloaded
@@ -253,6 +257,12 @@ fun BrowseActionsMenu(
             }
             onReorder?.let {
                 ActionRow(SfIcons.Reorder, stringResource(R.string.reorder_songs), onClick = it)
+            }
+            onChangeCover?.let {
+                ActionRow(SfIcons.Image, stringResource(R.string.change_playlist_image), onClick = it)
+            }
+            onResetCover?.let {
+                ActionRow(SfIcons.Revert, stringResource(R.string.reset_playlist_image), onClick = it)
             }
             if (onDelete != null) {
                 if (confirmingDelete) {

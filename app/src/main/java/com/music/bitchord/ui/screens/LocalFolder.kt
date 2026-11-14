@@ -68,6 +68,8 @@ import com.music.bitchord.R
 import com.music.bitchord.data.LocalGroup
 import com.music.bitchord.data.LocalGroups
 import com.music.bitchord.data.OfflinePlaylists
+import com.music.bitchord.data.PlaylistCoverStore
+import com.music.bitchord.data.customPlaylistCoverOf
 import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.model.CARD_ART_PX
 import com.music.bitchord.data.model.ROW_ART_PX
@@ -660,6 +662,9 @@ private fun LocalGroup.albumSubtitle(): String {
  */
 @Composable
 private fun LocalGroup.coverArt(): String? {
+    val customCovers by PlaylistCoverStore.covers.collectAsStateWithLifecycle()
+    val custom = customCovers.customPlaylistCoverOf(browseId)
+    if (custom != null) return custom
     val fetched = rememberRemoteArtworkUrl(songs.firstOrNull())
     return thumbnailUrl ?: fetched
 }

@@ -166,6 +166,7 @@ object OfflinePlaylists {
         val id = browseId.removePrefix(PREFIX)
         if (id == LIKED_ID) return
         mutate { list -> list.filterNot { it.id == id } }
+        PlaylistCoverStore.resetCustomCover(browseId)
     }
 
     private inline fun mutate(change: (List<OfflinePlaylist>) -> List<OfflinePlaylist>) {

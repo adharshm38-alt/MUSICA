@@ -103,6 +103,7 @@ for abi in $ABIS; do
         armeabi-v7a) build_abi armeabi-v7a armv7a-linux-androideabi arm armv7-a "-mfpu=neon -mfloat-abi=softfp" "--enable-neon" ;;
         # No nasm on the build machine; x86_64 is the emulator, not a phone.
         x86_64) build_abi x86_64 x86_64-linux-android x86_64 x86-64 "" "--disable-x86asm" ;;
+        x86) build_abi x86 i686-linux-android x86 i686 "" "--disable-x86asm" ;;
         *) echo "unknown ABI $abi" >&2; exit 1 ;;
     esac
 done

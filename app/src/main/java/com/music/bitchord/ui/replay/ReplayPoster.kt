@@ -406,11 +406,11 @@ private fun drawHeader(
     val brand = type.heading(46f, 0xE6FFFFFF.toInt()).apply {
         textAlign = Paint.Align.RIGHT
     }
-    canvas.drawText("BitChord", POSTER_W - MARGIN, 132f, brand)
+    canvas.drawText("MUSICA", POSTER_W - MARGIN, 132f, brand)
     // The mark, to the left of the word, exactly as the story header and the
     // card carry it. Without it the one artefact of this app that ends up in
     // somebody else's chat was the only place the logo didn't appear.
-    val wordWidth = brand.measureText("BitChord")
+    val wordWidth = brand.measureText("MUSICA")
     drawLogo(canvas, context, POSTER_W - MARGIN - wordWidth - LOGO_GAP, 132f)
 
     val credit = listOfNotNull(
@@ -701,11 +701,10 @@ private fun drawRuns(
  */
 internal fun drawLogo(canvas: Canvas, context: Context, right: Float, baseline: Float) {
     val logo = runCatching {
-        ResourcesCompat.getDrawable(context.resources, R.drawable.ic_logo, null)
+        ResourcesCompat.getDrawable(context.resources, R.drawable.musica_symbol, null)
     }.getOrNull() ?: return
     val left = right - LOGO_W
     val top = baseline - LOGO_H
-    logo.setTint(0xE6FFFFFF.toInt())
     logo.setBounds(left.toInt(), top.toInt(), (left + LOGO_W).toInt(), (top + LOGO_H).toInt())
     logo.draw(canvas)
 }
@@ -767,9 +766,9 @@ private const val POSTER_H = 1920
 
 private const val MARGIN = 72f
 
-/** The mark's drawn size. 730×484 in the vector, so this keeps its proportions. */
-private const val LOGO_W = 66f
-private const val LOGO_H = 44f
+/** The mark's drawn size. 739×417 in the official asset, so this keeps its proportions. */
+private const val LOGO_W = 67f
+private const val LOGO_H = 38f
 private const val LOGO_GAP = 20f
 
 /** The width type and artwork are laid out in. */

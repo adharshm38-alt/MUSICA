@@ -302,6 +302,13 @@ fun String?.durationMillis(): Long {
 /** As [Song.artworkAt], for artwork that isn't a track's. */
 fun String?.artworkAt(px: Int): String? {
     if (this == null) return null
+    if (this.contains("mzstatic.com") || this.contains("apple.com")) {
+        return if (px >= 1000) {
+            this.replace(Regex("""/\d+x\d+bb\."""), "/3000x3000bb.")
+        } else {
+            this.replace(Regex("""/\d+x\d+bb\."""), "/${px}x${px}bb.")
+        }
+    }
     val sized = this.replace(SIZE_HINT, "w$px-h$px")
     return if (isGoogleImageHost(this)) {
         sized.replace(PARAM_SIZE_HINT, "=s$px")

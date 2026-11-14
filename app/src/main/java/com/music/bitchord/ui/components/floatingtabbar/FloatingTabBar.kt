@@ -41,10 +41,12 @@ package com.music.bitchord.ui.components.floatingtabbar
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.BoundsTransform
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -52,6 +54,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -82,6 +85,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -93,10 +97,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shape
@@ -124,6 +129,14 @@ import kotlin.math.roundToInt
 
 /** Hoisted so the default is one stable lambda rather than a new one per call. */
 private val DefaultTabBarContentModifier: @Composable () -> Modifier = { Modifier }
+
+/** Snappy, jitter-free shared element bounds transform during dock fold/unfold. */
+private val DockBoundsTransform = BoundsTransform { _, _ ->
+    tween(durationMillis = 200, easing = FastOutSlowInEasing)
+}
+
+/** Exposes the live continuous pill position (in tab indices, e.g. 0f..3f) to child tabs. */
+val LocalFloatingTabBarPillPosition = compositionLocalOf { -1f }
 
 /**
  * A floating tab bar that can transition between inline and expanded states.
@@ -221,7 +234,15 @@ fun FloatingTabBar(
     SharedTransitionLayout(modifier = modifier) {
         AnimatedContent(
             targetState = scrollConnection.isInline,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            transitionSpec = {
+                fadeIn(
+                    animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing)
+                ) togetherWith fadeOut(
+                    animationSpec = tween(durationMillis = 100, easing = FastOutSlowInEasing)
+                ) using SizeTransform(clip = false) { _, _ ->
+                    tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                }
+            },
             contentAlignment = Alignment.BottomCenter
         ) { isInline ->
             if (isInline) {
@@ -274,13 +295,17 @@ class FloatingTabBarScrollConnection(
     private var accumulatedScroll = 0f
 
     fun expand() {
-        isInline = false
-        accumulatedScroll = 0f
+        if (isInline) {
+            isInline = false
+            accumulatedScroll = 0f
+        }
     }
 
     fun inline() {
-        isInline = true
-        accumulatedScroll = 0f
+        if (!isInline) {
+            isInline = true
+            accumulatedScroll = 0f
+        }
     }
 
     override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -339,14 +364,14 @@ class FloatingTabBarScrollConnection(
  * Creates and remembers a [FloatingTabBarScrollConnection] instance.
  *
  * @param initialIsInline Initial state of the tab bar (inline or expanded). Default is false.
- * @param scrollThreshold The minimum scroll distance required to trigger a state change. Default is 50.dp.
+ * @param scrollThreshold The minimum scroll distance required to trigger a state change. Default is 80.dp.
  * @param inlineBehavior Defines when the tab bar should transition to inline state. Default is [FloatingTabBarInlineBehavior.OnScrollDown].
  * @return A remembered [FloatingTabBarScrollConnection] instance.
  */
 @Composable
 fun rememberFloatingTabBarScrollConnection(
     initialIsInline: Boolean = false,
-    scrollThreshold: Dp = 50.dp,
+    scrollThreshold: Dp = 80.dp,
     inlineBehavior: FloatingTabBarInlineBehavior = FloatingTabBarInlineBehavior.OnScrollDown
 ): FloatingTabBarScrollConnection = with(LocalDensity.current) {
     val scrollThresholdPx = scrollThreshold.toPx()
@@ -495,6 +520,7 @@ private fun SharedTransitionScope.InlineTab(
             .sharedElement(
                 sharedContentState = rememberSharedContentState("tabGroup"),
                 animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = DockBoundsTransform,
                 zIndexInOverlay = 1f
             )
             .shadow(
@@ -517,21 +543,26 @@ private fun SharedTransitionScope.InlineTab(
             )
             .padding(sizes.tabInlineContentPadding)
     ) {
-        Tab(
-            icon = {
-                Box(
-                    Modifier.sharedElement(
-                        sharedContentState = rememberSharedContentState("tab#${inlineTab.key}-icon"),
-                        animatedVisibilityScope = animatedVisibilityScope,
-                        zIndexInOverlay = 1f
-                    )
-                ) {
-                    inlineTab.icon()
-                }
-            },
-            title = { inlineTab.title() },
-            isInline = true
-        )
+        CompositionLocalProvider(
+            LocalFloatingTabBarPillPosition provides ((inlineTab.key as? Int)?.toFloat() ?: 0f)
+        ) {
+            Tab(
+                icon = {
+                    Box(
+                        Modifier.sharedElement(
+                            sharedContentState = rememberSharedContentState("tab#${inlineTab.key}-icon"),
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = DockBoundsTransform,
+                            zIndexInOverlay = 1f
+                        )
+                    ) {
+                        inlineTab.icon()
+                    }
+                },
+                title = { inlineTab.title() },
+                isInline = true
+            )
+        }
     }
 }
 
@@ -554,6 +585,7 @@ private fun SharedTransitionScope.InlineStandaloneTab(
             .sharedElement(
                 sharedContentState = rememberSharedContentState("standaloneTab"),
                 animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = DockBoundsTransform,
                 zIndexInOverlay = 1f
             )
             .shadow(
@@ -591,7 +623,9 @@ private fun SharedTransitionScope.InlineAccessory(
                     if (isAccessoryShared) {
                         Modifier.sharedElement(
                             sharedContentState = rememberSharedContentState("accessory"),
-                            animatedVisibilityScope = animatedVisibilityScope
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            boundsTransform = DockBoundsTransform,
+                            zIndexInOverlay = 1f
                         )
                     } else {
                         Modifier.animateEnterExitAccessory(
@@ -710,7 +744,9 @@ private fun SharedTransitionScope.ExpandedAccessory(
                 if (isAccessoryShared) {
                     Modifier.sharedElement(
                         sharedContentState = rememberSharedContentState("accessory"),
-                        animatedVisibilityScope = animatedVisibilityScope
+                        animatedVisibilityScope = animatedVisibilityScope,
+                        boundsTransform = DockBoundsTransform,
+                        zIndexInOverlay = 1f
                     )
                 } else {
                     Modifier.animateEnterExitAccessory(
@@ -831,11 +867,15 @@ private fun SharedTransitionScope.ExpandedTabs(
             .sharedElement(
                 sharedContentState = rememberSharedContentState("tabGroup"),
                 animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = DockBoundsTransform,
                 zIndexInOverlay = 1f
             )
     ) {
         // The bar's glass is exported for the lens to refract.
-        CompositionLocalProvider(LocalGlassExport provides barGlass) {
+        CompositionLocalProvider(
+            LocalGlassExport provides barGlass,
+            LocalFloatingTabBarPillPosition provides (if (selectedTabIndex >= 0) pill.position else -1f)
+        ) {
             Box(
                 modifier = Modifier
                     .shadow(
@@ -849,8 +889,32 @@ private fun SharedTransitionScope.ExpandedTabs(
                     .clip(shapes.tabBarShape)
                     .then(tabBarContentModifier())
                     .padding(contentPadding)
-                    .animateContentSize()
             ) {
+                // Apple Music-inspired subtle glow around the active icon/finger
+                if (showPill) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .drawBehind {
+                                val center = pillCenterInRow(pill.position)
+                                val glowRadius = 32.dp.toPx()
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colorStops = arrayOf(
+                                            0.0f to Color(0xFFFA243C).copy(alpha = 0.20f),
+                                            0.40f to Color(0xFFFF375F).copy(alpha = 0.06f),
+                                            1.0f to Color.Transparent,
+                                        ),
+                                        center = center,
+                                        radius = glowRadius,
+                                    ),
+                                    radius = glowRadius,
+                                    center = center,
+                                )
+                            }
+                    )
+                }
+
                 if (showPill && (!glassPill || pill.isFlat)) {
                     FlatSelectionPill(
                         color = colors.indicatorColor,
@@ -871,23 +935,23 @@ private fun SharedTransitionScope.ExpandedTabs(
                         .layerBackdrop(tabRow)
                         .pointerInput(Unit) {
                             var totalDrag = 0f
-                            var dragStartIndex = currentSelectedTabIndex
+                            var dragStartIndex = currentSelectedTabIndex.toFloat()
                             var direction = 1f
                             var step = 0f
-                            // Decided per drag, not once for the coroutine: on the
-                            // standalone tab there is no pill in this row to pick up,
-                            // but that is no reason to stop listening for good.
                             var holding = false
                             detectHorizontalDragGestures(
-                                onDragStart = {
+                                onDragStart = { offset ->
                                     step = currentTabStepPx
-                                    holding = currentSelectedTabIndex >= 0 && step > 0f
+                                    holding = step > 0f
                                     if (!holding) return@detectHorizontalDragGestures
-                                    // In tab order, whichever way the row runs.
                                     direction = if (currentIsRtl) -1f else 1f
                                     totalDrag = 0f
-                                    dragStartIndex = currentSelectedTabIndex
+                                    val touchTab = if (step > 0f) {
+                                        ((offset.x - tabWidthPx / 2f) / step).coerceIn(0f, scope.tabs.lastIndex.toFloat())
+                                    } else currentSelectedTabIndex.toFloat()
+                                    dragStartIndex = touchTab
                                     pill.startDrag()
+                                    pill.dragTo(touchTab)
                                 },
                                 onDragCancel = {
                                     if (holding) pill.release(currentSelectedTabIndex)
@@ -900,7 +964,7 @@ private fun SharedTransitionScope.ExpandedTabs(
                                         .coerceIn(0f, scope.tabs.lastIndex.toFloat())
                                     val newIndex = absoluteIndexFloat.roundToInt()
                                     pill.release(newIndex)
-                                    if (newIndex != currentSelectedTabIndex) {
+                                    if (newIndex in scope.tabs.indices) {
                                         scope.tabs[newIndex].onClick()
                                     }
                                 },
@@ -934,6 +998,7 @@ private fun SharedTransitionScope.ExpandedTabs(
                                         Modifier.sharedElement(
                                             sharedContentState = rememberSharedContentState("tab#${tab.key}-icon"),
                                             animatedVisibilityScope = animatedVisibilityScope,
+                                            boundsTransform = DockBoundsTransform,
                                             zIndexInOverlay = 1f
                                         )
                                     } else {
@@ -1015,6 +1080,7 @@ private fun SharedTransitionScope.ExpandedStandaloneTab(
             .sharedElement(
                 sharedContentState = rememberSharedContentState("standaloneTab"),
                 animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = DockBoundsTransform,
                 zIndexInOverlay = 1f
             )
             .shadow(
@@ -1082,7 +1148,7 @@ private fun Modifier.animateEnterExitAccessory(
 }
 
 /**
- * A custom modifier that provides smooth enter/exit animations with fade and blur effects.
+ * A custom modifier that provides smooth enter/exit animations with fade effects.
  */
 @Composable
 private fun Modifier.animateEnterExitTab(
@@ -1090,20 +1156,15 @@ private fun Modifier.animateEnterExitTab(
     animatedVisibilityScope: AnimatedVisibilityScope
 ): Modifier = with(sharedTransitionScope) {
     with(animatedVisibilityScope) {
-        val enterStartFraction = 0.5f
-        val enterEndFraction = 0.8f
-        val durationMs = 150
-
         val animatedAlpha by transition.animateFloat(
             transitionSpec = {
-                keyframes {
-                    durationMillis = durationMs
-                    if (targetState == EnterExitState.Visible) {
-                        0f atFraction enterStartFraction using FastOutSlowInEasing
-                        1f atFraction enterEndFraction
-                    }
+                if (targetState == EnterExitState.Visible) {
+                    tween(durationMillis = 150, delayMillis = 40, easing = FastOutSlowInEasing)
+                } else {
+                    tween(durationMillis = 100, easing = FastOutSlowInEasing)
                 }
-            }
+            },
+            label = "tabAlpha"
         ) { targetState ->
             when (targetState) {
                 EnterExitState.Visible -> 1f
@@ -1111,40 +1172,8 @@ private fun Modifier.animateEnterExitTab(
             }
         }
 
-        // 12dp, down from the library's 50. A tab glyph is 28dp across, so a 50dp
-        // radius is twice the thing it is blurring — everything past about half
-        // the element's width has already dissolved it to nothing and is spent
-        // on a wider and wider sample of empty space. 12 reaches the same nothing
-        // over a quarter of the area, and there are six of these running at once
-        // in the middle of the fold, over glass that is sampling the screen.
-        val blurRadius = with(LocalDensity.current) { 12.dp.toPx() }
-        val animatedBlur by transition.animateFloat(
-            transitionSpec = {
-                keyframes {
-                    durationMillis = durationMs
-                    if (targetState == EnterExitState.Visible) {
-                        blurRadius atFraction enterStartFraction using FastOutSlowInEasing
-                        0f atFraction enterEndFraction
-                    }
-                }
-            }
-        ) { targetState ->
-            when (targetState) {
-                EnterExitState.Visible -> 0f
-                else -> blurRadius
-            }
-        }
-
         graphicsLayer {
             alpha = animatedAlpha
-            // Null at rest, rather than a zero-radius BlurEffect. A layer holding
-            // any render effect at all is composited offscreen for as long as it
-            // holds one, so the library's unconditional BlurEffect(0, 0) bought
-            // every tab glyph and every tab label a permanent offscreen buffer to
-            // pay for a blur of nothing — on a bar that is on screen the whole
-            // time the app is.
-            renderEffect =
-                if (animatedBlur > 0f) BlurEffect(animatedBlur, animatedBlur) else null
         }
     }
 }

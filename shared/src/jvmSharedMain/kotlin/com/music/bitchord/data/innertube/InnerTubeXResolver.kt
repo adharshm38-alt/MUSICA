@@ -274,6 +274,9 @@ object InnerTubeXResolver {
         val heights: List<Int>,
         /** InnerTubeX's catalog id for the client that minted [url]; what a refusal skips. */
         val profileId: String,
+        /** Companion audio-only URL from the same extraction when present and non-live. */
+        val audioUrl: String? = null,
+        val audioMimeType: String? = null,
     ) {
         val aspect: Float get() = if (height > 0) width.toFloat() / height else 0f
     }
@@ -301,6 +304,7 @@ object InnerTubeXResolver {
         maxHeight: Int,
         skipClients: Set<String> = emptySet(),
         ageRestricted: Boolean = false,
+        wantHighAudio: Boolean = false,
     ): VideoStream? {
         innerTube.cookie = Innertube.cookie
         innerTube.visitorData = Innertube.ensureVisitorData()
@@ -313,12 +317,16 @@ object InnerTubeXResolver {
                 maxVideoHeight = maxHeight,
             ).withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true),
             excludedClients = excludedFor(videoId) + skipClients,
-            audioQuality = AudioQuality.LOW,
+            audioQuality = if (wantHighAudio) AudioQuality.AUTO else AudioQuality.LOW,
             clientPlaybackNonce = generateClientPlaybackNonce(),
         ) ?: return null
         // A live broadcast's video-only URL is a window that ends in seconds,
         // like its audio one; no picture beats a frozen one.
         val url = stream.videoUrl?.takeUnless(StreamResolver::isLiveUrl) ?: return null
+        val companionAudioUrl = stream.audioUrl.takeUnless { it.isBlank() || StreamResolver.isLiveUrl(it) }
+        val companionAudioMime = stream.mimeType?.let { m ->
+            if (stream.codecs.isNullOrBlank()) m else "$m; codecs=\"${stream.codecs}\""
+        }
         val width = stream.videoWidth ?: 0
         val height = stream.videoHeight ?: 0
         val mime = stream.videoMimeType.orEmpty()
@@ -340,6 +348,8 @@ object InnerTubeXResolver {
                 .distinct()
                 .sortedDescending(),
             profileId = stream.profileId,
+            audioUrl = companionAudioUrl,
+            audioMimeType = companionAudioMime,
         )
     }
 

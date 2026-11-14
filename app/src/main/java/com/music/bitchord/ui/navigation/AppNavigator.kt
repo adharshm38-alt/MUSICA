@@ -49,6 +49,27 @@ sealed interface AppRoute {
 
     /** The Equalizer's list of preset curves. */
     data object EqualizerPresets : AppRoute
+
+    /** Full-screen About MUSICA details page opened from Settings → About → Details. */
+    data object AboutDetails : AppRoute
+
+    /** Stage 2 — Full-screen vertical short-video discovery feed. */
+    data class VideoDiscoveryFeed(val initialVideoId: String) : AppRoute
+
+    /** Stage 3 — Full music video playback page with audio player handoff. */
+    data class FullMusicVideo(val videoId: String) : AppRoute
+
+    /** Top Preview for You — Full-screen video preview screen with Listen Now action. */
+    data class TopPreviewFullScreen(val videoId: String) : AppRoute
+
+    /** Extra Changes hub under Settings. */
+    data object ExtraChanges : AppRoute
+
+    /** App Logos icon switcher gallery under Extra Changes. */
+    data object AppLogos : AppRoute
+
+    /** Backgrounds wallpaper gallery & preview. */
+    data object Backgrounds : AppRoute
 }
 
 /**
