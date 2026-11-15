@@ -16,6 +16,18 @@
          this, so granting it doesn't override a user who turned buzzing off. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- MUSI Voice Assistant: microphone input requested when active. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <queries>
+        <!-- Package visibility for Android SpeechRecognizer services on API 30+ -->
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <!-- Bit-perfect output: setting Android 14's preferred mixer attributes
          for a USB DAC. A normal permission, granted at install. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
@@ -242,6 +254,9 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="musica"
+                    android:host="party" />
                 <data
                     android:scheme="bitchord"
                     android:host="party" />
@@ -727,6 +742,12 @@
             android:name=".download.DownloadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- MUSI Assistant: Background wake-word listening service -->
+        <service
+            android:name=".assistant.wakeword.MusiWakeWordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- The tap on a "new songs in this playlist" notification. See PlaylistSync. -->
         <receiver

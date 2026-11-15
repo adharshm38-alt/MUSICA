@@ -283,6 +283,8 @@ fun SettingsScreen(
     val loudnessOffOnSpeaker by AppSettings.loudnessOffOnSpeaker.collectAsStateWithLifecycle()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
+    val musiAssistantEnabled by AppSettings.musiAssistantEnabled.collectAsStateWithLifecycle()
+    val musiWakeWordEnabled by AppSettings.musiWakeWordEnabled.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
     val cacheLimitBytes by AppSettings.audioCacheLimitBytes.collectAsStateWithLifecycle()
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
@@ -597,6 +599,47 @@ fun SettingsScreen(
                                 if (dolbyAtmosSupported) {
                                     AppSettings.setDolbyAtmos(!dolbyAtmos)
                                 }
+                            },
+                        )
+                    }
+                }
+            }
+
+            SearchableSettingsGroup(search, header = "MUSI Assistant") {
+                val musiTitle = "MUSI Assistant"
+                val musiSubtitle = "Your Personal Music Assistant"
+                row(musiTitle, musiSubtitle, "musi", "assistant", "voice", "speech", "mic", "microphone") {
+                    SettingsRow(
+                        icon = SfIcons.Mic,
+                        title = musiTitle,
+                        subtitle = musiSubtitle,
+                        trailing = {
+                            IosSwitch(
+                                checked = musiAssistantEnabled,
+                                onCheckedChange = AppSettings::setMusiAssistantEnabled,
+                            )
+                        },
+                        onClick = {
+                            AppSettings.setMusiAssistantEnabled(!musiAssistantEnabled)
+                        },
+                    )
+                }
+                if (musiAssistantEnabled) {
+                    val wakeWordTitle = "Wake Word ('Hey MUSI')"
+                    val wakeWordSubtitle = "Activates MUSI hands-free when you speak the wake word"
+                    row(wakeWordTitle, wakeWordSubtitle, "wake", "word", "hey musi", "voice activation", "hands free") {
+                        SettingsRow(
+                            icon = SfIcons.GraphicEq,
+                            title = wakeWordTitle,
+                            subtitle = wakeWordSubtitle,
+                            trailing = {
+                                IosSwitch(
+                                    checked = musiWakeWordEnabled,
+                                    onCheckedChange = AppSettings::setMusiWakeWordEnabled,
+                                )
+                            },
+                            onClick = {
+                                AppSettings.setMusiWakeWordEnabled(!musiWakeWordEnabled)
                             },
                         )
                     }

@@ -87,7 +87,7 @@ android {
     defaultConfig {
         // Its own id, so the TV app is a separate install from the phone app
         // rather than an upgrade over it (or under it).
-        applicationId = "com.music.bitchord.tv"
+        applicationId = "com.adarshm.musica.tv"
         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
         // Haze falls back to a translucent scrim below that.
         minSdk = 26
@@ -165,11 +165,12 @@ android {
     productFlavors {
         create("dev") {
             dimension = "env"
-            applicationId = "com.dev.bitchord.tv"
+            applicationId = "com.adarshm.musica.tv.dev"
             resValue("string", "app_name", "MUSICA TV")
         }
         create("prod") {
             dimension = "env"
+            applicationId = "com.adarshm.musica.tv"
             resValue("string", "app_name", "MUSICA TV")
         }
     }

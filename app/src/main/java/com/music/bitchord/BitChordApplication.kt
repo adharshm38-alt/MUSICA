@@ -200,6 +200,8 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
         initLastfm()
         // The public "apps open right now" count; see Presence.
         com.music.bitchord.data.presence.AndroidPresence.install(this)
+        // Restrict MUSI wake-word listening strictly to MUSICA foreground lifecycle
+        com.music.bitchord.assistant.wakeword.MusiWakeWordCoordinator.install(this)
         backgroundInit.join()
     }
 

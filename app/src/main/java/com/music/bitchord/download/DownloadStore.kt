@@ -56,7 +56,8 @@ object DownloadStore {
     private const val TAG = "BitChord"
 
     /** The subfolder of Music that everything lands in. */
-    const val FOLDER = "BitChord"
+    const val FOLDER = "MUSICA"
+    private const val LEGACY_FOLDER = "BitChord"
 
     private val relativePath = "${Environment.DIRECTORY_MUSIC}/$FOLDER"
 
@@ -167,9 +168,10 @@ object DownloadStore {
         context.contentResolver.query(
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
             arrayOf(MediaStore.MediaColumns._ID),
-            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND " +
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-            arrayOf(name, "%$FOLDER%"),
+            "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND (" +
+                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR " +
+                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?)",
+            arrayOf(name, "%$FOLDER%", "%$LEGACY_FOLDER%"),
             null,
         )?.use { cursor ->
             if (!cursor.moveToFirst()) return@use null
@@ -309,10 +311,17 @@ object DownloadStore {
     }
 
     @Suppress("DEPRECATION")
-    private fun legacyFile(name: String) = File(
-        File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER),
-        name,
-    )
+    private fun legacyFile(name: String): File {
+        val musicaFile = File(
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), FOLDER),
+            name,
+        )
+        if (musicaFile.exists()) return musicaFile
+        return File(
+            File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), LEGACY_FOLDER),
+            name,
+        )
+    }
 
     private fun privateFile(context: Context, name: String) =
         File(File(context.filesDir, "downloads"), name)

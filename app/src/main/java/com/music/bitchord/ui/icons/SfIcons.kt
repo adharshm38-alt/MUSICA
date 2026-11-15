@@ -58,6 +58,8 @@ import com.composables.sfsymbols.monochrome.SFLine3Horizontal
 import com.composables.sfsymbols.monochrome.SFLine3HorizontalDecreaseCircle
 import com.composables.sfsymbols.monochrome.SFLivephotoSlash
 import com.composables.sfsymbols.monochrome.SFLock
+import com.composables.sfsymbols.monochrome.SFMicrophone
+import com.composables.sfsymbols.monochrome.SFMicrophoneFill
 import com.composables.sfsymbols.monochrome.SFMoonZzz
 import com.composables.sfsymbols.monochrome.SFMusicMicrophone
 import com.composables.sfsymbols.monochrome.SFMusicNote
@@ -174,6 +176,8 @@ object SfIcons {
     val Lock: ImageVector by lazy { bold(SfSymbols.Monochrome.SFLock) }
     val Login: ImageVector by lazy { bold(SfSymbols.Monochrome.SFArrowRightCircle) }
     val Logout: ImageVector by lazy { bold(SfSymbols.Monochrome.SFRectanglePortraitAndArrowRight) }
+    val Mic: ImageVector by lazy { bold(SfSymbols.Monochrome.SFMicrophone) }
+    val MicFill: ImageVector by lazy { bold(SfSymbols.Monochrome.SFMicrophoneFill) }
     val Miscellaneous: ImageVector by lazy { bold(SfSymbols.Monochrome.SFEllipsisCircle) }
     val MotionPhotosOff: ImageVector by lazy { bold(SfSymbols.Monochrome.SFLivephotoSlash) }
     val MusicNote: ImageVector by lazy { bold(SfSymbols.Monochrome.SFMusicNote) }

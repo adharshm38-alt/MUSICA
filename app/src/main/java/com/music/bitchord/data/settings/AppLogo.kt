@@ -75,7 +75,7 @@ enum class AppLogo(
     );
 
     fun component(context: Context): ComponentName =
-        ComponentName(context.packageName, "${context.packageName}.$alias")
+        ComponentName(context.packageName, "com.music.bitchord.$alias")
 
     companion object {
         val ALL = entries.toList()
@@ -131,7 +131,7 @@ enum class AppLogo(
             legacyAliases.forEach { legacy ->
                 runCatching {
                     pm.setComponentEnabledSetting(
-                        ComponentName(packageName, "$packageName.$legacy"),
+                        ComponentName(packageName, "com.music.bitchord.$legacy"),
                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                         PackageManager.DONT_KILL_APP,
                     )

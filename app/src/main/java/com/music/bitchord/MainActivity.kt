@@ -3,6 +3,12 @@ package com.music.bitchord
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import com.music.bitchord.assistant.MusiAssistantManager
+import com.music.bitchord.assistant.MusiCommand
+import com.music.bitchord.assistant.MusiPlaybackController
+import com.music.bitchord.assistant.ui.MusiVoiceOverlay
+import com.music.bitchord.assistant.wakeword.MusiWakeWordCoordinator
+import com.music.bitchord.assistant.wakeword.MusiWakeWordService
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
@@ -331,6 +337,7 @@ import com.music.bitchord.ui.components.UpdateAvailableDialog
 import com.music.bitchord.ui.components.WebDavConflictAlert
 import com.music.bitchord.ui.components.FieldConfig
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.icons.SfIcons
 import androidx.media3.common.Player
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.TopPicks
@@ -427,6 +434,10 @@ internal fun shouldSkipAfterDislike(
 
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        val wakeWordTrigger = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -436,6 +447,10 @@ class MainActivity : AppCompatActivity() {
         JamInviteLink.consume(intent)
         // Likewise for a link tapped or shared from another app — see [MusicLink].
         MusicLink.consume(intent)
+        MusiAssistantManager.init(this)
+        if (intent.action == MusiWakeWordService.ACTION_WAKE_WORD) {
+            wakeWordTrigger.value = System.currentTimeMillis()
+        }
         setContent {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
@@ -569,6 +584,28 @@ class MainActivity : AppCompatActivity() {
         PlayerDeepLink.consume(intent)
         JamInviteLink.consume(intent)
         MusicLink.consume(intent)
+        if (intent.action == MusiWakeWordService.ACTION_WAKE_WORD) {
+            wakeWordTrigger.value = System.currentTimeMillis()
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        MusiWakeWordCoordinator.resume()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // MUSI wake-word activation is strictly foreground-only.
+        // Halt any active detection and release microphone immediately when leaving foreground.
+        MusiWakeWordCoordinator.stop(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        MusiWakeWordCoordinator.unregisterTriggerCallback()
+        MusiWakeWordCoordinator.stop(this)
+        MusiAssistantManager.release()
     }
 }
 
@@ -1982,6 +2019,192 @@ private fun BitChordApp(
             title,
         )
     }
+    val musiAssistantEnabled by AppSettings.musiAssistantEnabled.collectAsStateWithLifecycle()
+    val musiWakeWordEnabled by AppSettings.musiWakeWordEnabled.collectAsStateWithLifecycle()
+    val musiState by MusiAssistantManager.state.collectAsStateWithLifecycle()
+    val wakeTrigger by MainActivity.wakeWordTrigger.collectAsStateWithLifecycle()
+
+    val handleMusiCommand: (MusiCommand) -> Unit = { command ->
+        when (command) {
+            is MusiCommand.Play, is MusiCommand.Resume -> {
+                val hasQueue = (controller?.mediaItemCount ?: 0) > 0
+                if (hasQueue) {
+                    prepareForPlayback()
+                    controller?.play()
+                    MusiAssistantManager.speak("Resuming your music.")
+                } else {
+                    MusiPlaybackController.processAndPlay(
+                        query = "Trending Hits",
+                        onStepUpdate = { step -> MusiAssistantManager.setProcessingStep(step) },
+                        onPlaySong = { song, source ->
+                            prepareForPlayback()
+                            playRadio(song, source)
+                        },
+                        isPlayerActive = { controller?.isPlaying == true || controller?.playbackState == androidx.media3.common.Player.STATE_BUFFERING || controller?.playbackState == androidx.media3.common.Player.STATE_READY }
+                    )
+                }
+            }
+            is MusiCommand.Pause -> {
+                controller?.pause()
+                MusiAssistantManager.speak("Paused.")
+            }
+            is MusiCommand.Next -> {
+                controller?.seekToNextMediaItem()
+                MusiAssistantManager.speak("Playing the next song.")
+            }
+            is MusiCommand.Previous -> {
+                controller?.seekToPreviousMediaItem()
+                MusiAssistantManager.speak("Playing previous song.")
+            }
+            is MusiCommand.Stop -> {
+                controller?.stop()
+                MusiAssistantManager.speak("Music stopped.")
+            }
+            is MusiCommand.PlayFavorites -> {
+                val offlineLikedSongs = OfflinePlaylists.playlists.value
+                    .firstOrNull { it.isLiked }?.songs.orEmpty()
+                val libraryLikedSongs = (viewModel.library.value as? UiState.Success)?.data?.likedSongs.orEmpty()
+                val favSongs = if (offlineLikedSongs.isNotEmpty()) offlineLikedSongs else libraryLikedSongs
+
+                if (favSongs.isNotEmpty()) {
+                    prepareForPlayback()
+                    scope.launch {
+                        controller?.playSongs(favSongs, 0)
+                    }
+                    MusiAssistantManager.speak("Playing your favourites.")
+                } else {
+                    MusiAssistantManager.speak("Your favourites list is empty.")
+                }
+            }
+            is MusiCommand.PlayPlaylist -> {
+                val playlistName = command.name
+                val offlineMatch = OfflinePlaylists.playlists.value
+                    .filterNot { it.isLiked }
+                    .firstOrNull { it.title.contains(playlistName, ignoreCase = true) }
+
+                if (offlineMatch != null && offlineMatch.songs.isNotEmpty()) {
+                    prepareForPlayback()
+                    scope.launch {
+                        controller?.playSongs(offlineMatch.songs, 0)
+                    }
+                    MusiAssistantManager.speak("Playing playlist ${offlineMatch.title}.")
+                } else {
+                    MusiAssistantManager.speak("I couldn't find a playlist named $playlistName.")
+                }
+            }
+            is MusiCommand.PlaySongOrArtist -> {
+                val query = command.query
+                MusiPlaybackController.processAndPlay(
+                    query = query,
+                    onStepUpdate = { step -> MusiAssistantManager.setProcessingStep(step) },
+                    onPlaySong = { song, source ->
+                        prepareForPlayback()
+                        playRadio(song, source)
+                    },
+                    isPlayerActive = { controller?.isPlaying == true || controller?.playbackState == androidx.media3.common.Player.STATE_BUFFERING || controller?.playbackState == androidx.media3.common.Player.STATE_READY }
+                )
+            }
+            is MusiCommand.Search -> {
+                val query = command.query
+                MusiPlaybackController.processAndPlay(
+                    query = query,
+                    onStepUpdate = { step -> MusiAssistantManager.setProcessingStep(step) },
+                    onPlaySong = { song, source ->
+                        prepareForPlayback()
+                        playRadio(song, source)
+                    },
+                    isPlayerActive = { controller?.isPlaying == true || controller?.playbackState == androidx.media3.common.Player.STATE_BUFFERING || controller?.playbackState == androidx.media3.common.Player.STATE_READY }
+                )
+            }
+            is MusiCommand.Greeting -> {
+                MusiAssistantManager.speak("Hello! I'm MUSI. What would you like to listen to?")
+            }
+            is MusiCommand.Unknown -> {
+                val text = command.rawText
+                if (text.isNotBlank()) {
+                    MusiPlaybackController.processAndPlay(
+                        query = text,
+                        onStepUpdate = { step -> MusiAssistantManager.setProcessingStep(step) },
+                        onPlaySong = { song, source ->
+                            prepareForPlayback()
+                            playRadio(song, source)
+                        },
+                        isPlayerActive = { controller?.isPlaying == true || controller?.playbackState == androidx.media3.common.Player.STATE_BUFFERING || controller?.playbackState == androidx.media3.common.Player.STATE_READY }
+                    )
+                } else {
+                    MusiAssistantManager.speak("I didn't catch that. Please try again.")
+                }
+            }
+        }
+    }
+
+    var requestMusiAudioPermission: (() -> Unit)? = null
+
+    val startMusiListening: () -> Unit = {
+        if (!musiAssistantEnabled) {
+            Toast.makeText(context, "MUSI is disabled. Enable it in Settings.", Toast.LENGTH_SHORT).show()
+        } else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            MusiAssistantManager.startListening(context, handleMusiCommand)
+        } else {
+            requestMusiAudioPermission?.invoke()
+        }
+    }
+
+    val musiAudioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { isGranted ->
+        if (isGranted) {
+            if (musiWakeWordEnabled) {
+                MusiWakeWordCoordinator.updateState(context) {
+                    startMusiListening()
+                }
+            }
+            MusiAssistantManager.startListening(context, handleMusiCommand)
+        } else {
+            MusiAssistantManager.notifyPermissionDenied()
+        }
+    }
+    requestMusiAudioPermission = { musiAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) }
+
+    LaunchedEffect(wakeTrigger) {
+        if (wakeTrigger > 0L) {
+            startMusiListening()
+        }
+    }
+
+    DisposableEffect(controller) {
+        MusiWakeWordCoordinator.registerTriggerCallback {
+            startMusiListening()
+        }
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                MusiWakeWordCoordinator.setMusicPlaying(isPlaying)
+            }
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                MusiWakeWordCoordinator.setMusicPlaying(controller?.isPlaying == true)
+            }
+        }
+        controller?.addListener(listener)
+        MusiWakeWordCoordinator.setMusicPlaying(controller?.isPlaying == true)
+        onDispose {
+            controller?.removeListener(listener)
+            MusiWakeWordCoordinator.unregisterTriggerCallback()
+            MusiWakeWordCoordinator.setMusicPlaying(false)
+        }
+    }
+
+    LaunchedEffect(musiAssistantEnabled, musiWakeWordEnabled) {
+        if (musiAssistantEnabled && musiWakeWordEnabled) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                MusiWakeWordCoordinator.updateState(context) {
+                    startMusiListening()
+                }
+            }
+        } else {
+            MusiWakeWordCoordinator.evaluateListeningState()
+        }
+    }
+
     val addToQueue: (Song) -> Unit = { song ->
         scope.launch {
             if (refusedByHost()) return@launch
@@ -4416,6 +4639,18 @@ private fun BitChordApp(
                             if (route != AppRoute.Downloads) {
                                 TopBarDownloadButton(onClick = { navigator.push(AppRoute.Downloads) })
                             }
+                            if (musiAssistantEnabled) {
+                                IconButton(
+                                    onClick = startMusiListening,
+                                ) {
+                                    Icon(
+                                        imageVector = SfIcons.Mic,
+                                        contentDescription = "MUSI Voice Assistant",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
                             // Not on a release page, whose pill already carries
                             // three of its own controls — Apple Music leaves the
                             // profile off its album pages too.
@@ -6239,6 +6474,11 @@ private fun BitChordApp(
             )
         }
 
+        MusiVoiceOverlay(
+            state = musiState,
+            onDismiss = { MusiAssistantManager.dismissOverlay() },
+            onRetry = { startMusiListening() },
+        )
     }
 }
 

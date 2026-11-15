@@ -468,6 +468,12 @@ object AppSettings {
     /** Once a song has been suggested or played this session, AutoPlay won't offer it again. */
     val dontRepeatSuggestions = MutableStateFlow(false)
 
+    /** MUSI Personal Music Voice Assistant toggle. Default is false (OFF). */
+    val musiAssistantEnabled = MutableStateFlow(false)
+
+    /** MUSI Hands-free Wake Word ("Hey MUSI") detection toggle. Default is true (ON). */
+    val musiWakeWordEnabled = MutableStateFlow(true)
+
     /** Music videos play as their audio version — see [com.music.bitchord.playback.MusicOnlyPlayback]. */
     val preferMusicOnly = MutableStateFlow(false)
 
@@ -1043,6 +1049,8 @@ object AppSettings {
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
         swipeToPlayNext.value = prefs.getBoolean(KEY_SWIPE_TO_PLAY_NEXT, false)
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
+        musiAssistantEnabled.value = prefs.getBoolean(KEY_MUSI_ASSISTANT_ENABLED, false)
+        musiWakeWordEnabled.value = prefs.getBoolean(KEY_MUSI_WAKE_WORD_ENABLED, true)
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
         hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
@@ -1453,6 +1461,23 @@ object AppSettings {
     fun setStopOnTaskRemoved(value: Boolean) {
         stopOnTaskRemoved.value = value
         prefs.edit().putBoolean(KEY_STOP_ON_TASK_REMOVED, value).apply()
+    }
+
+    fun setMusiAssistantEnabled(value: Boolean) {
+        musiAssistantEnabled.value = value
+        prefs.edit().putBoolean(KEY_MUSI_ASSISTANT_ENABLED, value).apply()
+        if (!value) {
+            com.music.bitchord.assistant.MusiAssistantManager.stop()
+            com.music.bitchord.assistant.wakeword.MusiWakeWordCoordinator.stop()
+        }
+    }
+
+    fun setMusiWakeWordEnabled(value: Boolean) {
+        musiWakeWordEnabled.value = value
+        prefs.edit().putBoolean(KEY_MUSI_WAKE_WORD_ENABLED, value).apply()
+        if (!value) {
+            com.music.bitchord.assistant.wakeword.MusiWakeWordCoordinator.stop()
+        }
     }
 
     fun setHideVolumeBar(value: Boolean) {
@@ -2368,6 +2393,8 @@ object AppSettings {
     private const val KEY_LOCAL_MUSIC_VIEW_TYPE = "local_music_view_type"
     private const val KEY_DOWNLOADED_MUSIC_VIEW_TYPE = "downloaded_music_view_type"
     private const val KEY_LOCAL_MUSIC_FOLDER_URI = "local_music_folder_uri"
+    private const val KEY_MUSI_ASSISTANT_ENABLED = "musi_assistant_enabled"
+    private const val KEY_MUSI_WAKE_WORD_ENABLED = "musi_wake_word_enabled"
     private const val KEY_WEBDAV_URL = "webdav_url"
     private const val KEY_WEBDAV_USERNAME = "webdav_username"
     private const val KEY_SMB_HOST = "smb_host"
